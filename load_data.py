@@ -24,6 +24,9 @@ def read_file(data_dir, with_evaluation):
             elif data_dir == './yelp':
                 data.append(row[1])
                 target.append(int(row[0]) - 1)
+            elif data_dir == './hatespeech':
+                data.append(row[1])
+                target.append(int(row[0]))
     if with_evaluation:
         y = np.asarray(target)
         assert len(data) == len(y)
@@ -65,7 +68,7 @@ def pad_sequences(sentences, padding_word="<PAD/>", pad_len=None):
         sequence_length = pad_len
     else:
         sequence_length = max(len(x) for x in sentences)
-    
+
     padded_sentences = []
     for i in range(len(sentences)):
         sentence = sentences[i]
@@ -97,7 +100,7 @@ def build_input_data_rnn(data, vocabulary, max_doc_len, max_sent_len):
             k = 0
             for word in sent:
                 x[i,j,k] = vocabulary[word]
-                k += 1         
+                k += 1
     return x
 
 
@@ -184,7 +187,7 @@ def load_keywords(data_path, sup_source):
         print("Keywords for each class: ")
     infile = open(join(data_path, file_name), mode='r', encoding='utf-8')
     text = infile.readlines()
-    
+
     keywords = []
     for i, line in enumerate(text):
         line = line.split('\n')[0]
@@ -222,7 +225,7 @@ def load_cnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, tr
         truncate_len = min(int(len_avg + 3*len_std), len_max)
     print("Defined maximum document length: {} (words)".format(truncate_len))
     print('Fraction of truncated documents: {}'.format(sum(tmp > truncate_len for tmp in tmp_list)/len(tmp_list)))
-    
+
     sequences_padded = pad_sequences(data)
     word_counts, vocabulary, vocabulary_inv = build_vocab(sequences_padded)
     x = build_input_data_cnn(sequences_padded, vocabulary)
@@ -247,6 +250,8 @@ def load_cnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, tr
             class_type = 'topic'
         elif dataset_name == 'yelp':
             class_type = 'sentiment'
+        elif dataset_name == 'hatespeech':
+            class_type = 'topic'
         keywords, sup_idx = extract_keywords(data_path, vocabulary, class_type, num_keywords, data, perm)
         return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, len_std, keywords, sup_idx, perm
 
@@ -275,7 +280,7 @@ def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, tr
     print("\n### Dataset statistics: ###")
     print('Sentence max length: {} (words)'.format(max_sent_len))
     print('Sentence average length: {} (words)'.format(avg_sent_len))
-    
+
     if truncate_len is None:
         truncate_sent_len = min(int(avg_sent_len + 3*std_sent_len), max_sent_len)
     else:
@@ -287,7 +292,7 @@ def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, tr
     max_doc_len = max(tmp_list)
     avg_doc_len = np.average(tmp_list)
     std_doc_len = np.std(tmp_list)
-    
+
     print('Document max length: {} (sentences)'.format(max_doc_len))
     print('Document average length: {} (sentences)'.format(avg_doc_len))
 
@@ -297,7 +302,7 @@ def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, tr
         truncate_doc_len = truncate_len[0]
     print("Defined maximum document length: {} (sentences)".format(truncate_doc_len))
     print('Fraction of truncated documents: {}'.format(sum(tmp > truncate_doc_len for tmp in tmp_list)/len(tmp_list)))
-    
+
     len_avg = [avg_doc_len, avg_sent_len]
     len_std = [std_doc_len, std_sent_len]
 
@@ -324,6 +329,8 @@ def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, tr
             class_type = 'topic'
         elif dataset_name == 'yelp':
             class_type = 'sentiment'
+        elif dataset_name == 'hatespeech':
+            class_type = 'topic'
         keywords, sup_idx = extract_keywords(data_path, vocabulary, class_type, num_keywords, data_copy, perm)
         return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, len_std, keywords, sup_idx, perm
 

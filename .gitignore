@@ -1,3 +1,6 @@
+*final.h5
+*pretrained.h5
+*embedding
 .idea/
 __pycache__/
-.DS_Store
+*.DS_Store
