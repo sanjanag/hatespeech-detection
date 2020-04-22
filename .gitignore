@@ -5,3 +5,5 @@ results/
 .idea/
 __pycache__/
 *.DS_Store
+data/*
+jupyter_notebooks/.ipynb_checkpoints/*
