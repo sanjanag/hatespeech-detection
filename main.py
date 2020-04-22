@@ -136,8 +136,9 @@ if __name__ == "__main__":
             pretrain_epochs = 30
             self_lr = 1e-4
             max_sequence_length = 500
+
         elif args.dataset == 'hatespeech':
-            update_interval = 50
+            update_interval = 2
             pretrain_epochs = 10
             self_lr = 1e-4
             max_sequence_length = 114
@@ -162,8 +163,8 @@ if __name__ == "__main__":
 
         elif args.dataset == 'hatespeech':
             update_interval = 50
-            pretrain_epochs = 100
-            self_lr = 1e-4
+            pretrain_epochs = 50
+            self_lr = 1e-3
             sent_len = 50
             doc_len = 10
 
@@ -179,6 +180,7 @@ if __name__ == "__main__":
         with_evaluation = True
     else:
         with_evaluation = False
+
     if args.sup_source == 'labels' or args.sup_source == 'keywords':
         x, y, word_counts, vocabulary, vocabulary_inv_list, len_avg, \
         len_std, word_sup_list, perm = \
@@ -254,10 +256,9 @@ if __name__ == "__main__":
             elif args.model == 'rnn':
                 num_real_doc = len(sup_idx.flatten())
             real_seed_docs, real_seed_label = augment(x, sup_idx, num_real_doc)
-            seed_docs = real_seed_docs
-            seed_label = real_seed_label
-            # seed_docs = np.concatenate((seed_docs, real_seed_docs), axis=0)
-            # seed_label = np.concatenate((seed_label, real_seed_label), axis=0)
+            seed_docs = real_seed_docs#np.concatenate((seed_docs, real_seed_docs), axis=0)
+            seed_label = real_seed_label#np.concatenate((seed_label, real_seed_label),
+            # axis=0)
 
         perm_seed = np.random.permutation(len(seed_label))
         seed_docs = seed_docs[perm_seed]

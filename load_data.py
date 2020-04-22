@@ -1,19 +1,18 @@
 import csv
-import numpy as np
-import os
-import re
 import itertools
+import re
 from collections import Counter
 from os.path import join
+
+import numpy as np
 from nltk import tokenize
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.feature_extraction.text import TfidfTransformer
 
 
 def read_file(data_dir, with_evaluation):
     data = []
     target = []
-    with open(join(data_dir, 'dataset.csv'), 'rt', encoding='utf-8') as csvfile:
+    with open(join(data_dir, 'dataset.csv'), 'rt',
+              encoding='utf-8') as csvfile:
         csv.field_size_limit(500 * 1024 * 1024)
         reader = csv.reader(csvfile)
         for row in reader:
@@ -35,6 +34,19 @@ def read_file(data_dir, with_evaluation):
         y = None
     return data, y
 
+def clean_twitter(text):
+    text = text.encode("ascii", errors="ignore").decode()
+    text = re.sub(r'\w+@\w+\.\w+', ' ', text)  # remove emails
+    text = re.sub(r'(https{0,1}\:\/\/.+?(\s|$))|(www\..+?(\s|$))|('
+                  r'\b\w+\.twitter\.com.+?(\s|$))', ' ',
+                  text)  # remove urls
+    text = re.sub(r'(@[A-Za-z0-9_]+:?(\s|$))', ' ', text)  # remove mentions
+    text = re.sub(r'\b(RT|rt)\b', ' ', text)  # remove retweets
+    text = re.sub(r'(&#\d+;)+', ' ', text)  # remove retweets
+    text = re.sub(r'&\w+;(\w)?', ' ', text)
+    text = re.sub(r'(#[A-Za-z0-9_]+)', ' ', text)  # remove hashtags
+    text = re.sub(r'(\.){2,}', '.', text)
+    return text
 
 def clean_str(string):
     string = re.sub(r"[^A-Za-z0-9(),.!?_\"\'\`]", " ", string)
@@ -57,8 +69,10 @@ def clean_str(string):
     return string.strip().lower()
 
 
-def preprocess_doc(data):
+def preprocess_doc(data, is_tweet=False):
     data = [s.strip() for s in data]
+    if is_tweet:
+        data = [clean_twitter(s) for s in data]
     data = [clean_str(s) for s in data]
     return data
 
@@ -89,7 +103,8 @@ def build_vocab(sentences):
 
 
 def build_input_data_cnn(sentences, vocabulary):
-    x = np.array([[vocabulary[word] for word in sentence] for sentence in sentences])
+    x = np.array(
+        [[vocabulary[word] for word in sentence] for sentence in sentences])
     return x
 
 
@@ -99,7 +114,7 @@ def build_input_data_rnn(data, vocabulary, max_doc_len, max_sent_len):
         for j, sent in enumerate(doc):
             k = 0
             for word in sent:
-                x[i,j,k] = vocabulary[word]
+                x[i, j, k] = vocabulary[word]
                 k += 1
     return x
 
@@ -125,7 +140,8 @@ def extract_keywords(data_path, vocab, class_type, num_keywords, data, perm):
     from sklearn.feature_extraction.text import TfidfVectorizer
     import nltk
 
-    tfidf = TfidfVectorizer(norm='l2', sublinear_tf=True, max_df=0.2, stop_words='english')
+    tfidf = TfidfVectorizer(norm='l2', sublinear_tf=True, max_df=0.2,
+                            stop_words='english')
     sup_x = tfidf.fit_transform(sup_data)
     sup_x = np.asarray(sup_x.todense())
 
@@ -137,7 +153,7 @@ def extract_keywords(data_path, vocab, class_type, num_keywords, data, perm):
     keywords = []
     cnt = 0
     for i in range(len(sup_idx)):
-        class_vec = np.average(sup_x[cnt:cnt+len(sup_idx[i])], axis=0)
+        class_vec = np.average(sup_x[cnt:cnt + len(sup_idx[i])], axis=0)
         cnt += len(sup_idx[i])
         sort_idx = np.argsort(class_vec)[::-1]
         keyword = []
@@ -200,7 +216,8 @@ def load_keywords(data_path, sup_source):
     return keywords
 
 
-def load_cnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, truncate_len=None):
+def load_cnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
+             truncate_len=None):
     data_path = './' + dataset_name
     data, y = read_file(data_path, with_evaluation)
 
@@ -208,7 +225,11 @@ def load_cnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, tr
     np.random.seed(1234)
     perm = np.random.permutation(sz)
 
-    data = preprocess_doc(data)
+    if dataset_name == 'hatespeech':
+        data = preprocess_doc(data, True)
+    else:
+        data = preprocess_doc(data)
+
     data = [s.split(" ") for s in data]
 
     tmp_list = [len(doc) for doc in data]
@@ -222,9 +243,10 @@ def load_cnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, tr
     print('Document length std: {} (words)'.format(len_std))
 
     if truncate_len is None:
-        truncate_len = min(int(len_avg + 3*len_std), len_max)
+        truncate_len = min(int(len_avg + 3 * len_std), len_max)
     print("Defined maximum document length: {} (words)".format(truncate_len))
-    print('Fraction of truncated documents: {}'.format(sum(tmp > truncate_len for tmp in tmp_list)/len(tmp_list)))
+    print('Fraction of truncated documents: {}'.format(
+        sum(tmp > truncate_len for tmp in tmp_list) / len(tmp_list)))
 
     sequences_padded = pad_sequences(data)
     word_counts, vocabulary, vocabulary_inv = build_vocab(sequences_padded)
@@ -242,7 +264,8 @@ def load_cnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, tr
 
     if sup_source == 'labels' or sup_source == 'keywords':
         keywords = load_keywords(data_path, sup_source)
-        return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, len_std, keywords, perm
+        return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, \
+               len_std, keywords, perm
     elif sup_source == 'docs':
         if dataset_name == 'nyt':
             class_type = 'topic'
@@ -252,11 +275,14 @@ def load_cnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, tr
             class_type = 'sentiment'
         elif dataset_name == 'hatespeech':
             class_type = 'topic'
-        keywords, sup_idx = extract_keywords(data_path, vocabulary, class_type, num_keywords, data, perm)
-        return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, len_std, keywords, sup_idx, perm
+        keywords, sup_idx = extract_keywords(data_path, vocabulary, class_type,
+                                             num_keywords, data, perm)
+        return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, \
+               len_std, keywords, sup_idx, perm
 
 
-def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, truncate_len=None):
+def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
+             truncate_len=None):
     data_path = './' + dataset_name
     data, y = read_file(data_path, with_evaluation)
 
@@ -282,11 +308,14 @@ def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, tr
     print('Sentence average length: {} (words)'.format(avg_sent_len))
 
     if truncate_len is None:
-        truncate_sent_len = min(int(avg_sent_len + 3*std_sent_len), max_sent_len)
+        truncate_sent_len = min(int(avg_sent_len + 3 * std_sent_len),
+                                max_sent_len)
     else:
         truncate_sent_len = truncate_len[1]
-    print("Defined maximum sentence length: {} (words)".format(truncate_sent_len))
-    print('Fraction of truncated sentences: {}'.format(sum(tmp > truncate_sent_len for tmp in tmp_list)/len(tmp_list)))
+    print("Defined maximum sentence length: {} (words)".format(
+        truncate_sent_len))
+    print('Fraction of truncated sentences: {}'.format(
+        sum(tmp > truncate_sent_len for tmp in tmp_list) / len(tmp_list)))
 
     tmp_list = [len(doc) for doc in data]
     max_doc_len = max(tmp_list)
@@ -297,11 +326,13 @@ def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, tr
     print('Document average length: {} (sentences)'.format(avg_doc_len))
 
     if truncate_len is None:
-        truncate_doc_len = min(int(avg_doc_len + 3*std_doc_len), max_doc_len)
+        truncate_doc_len = min(int(avg_doc_len + 3 * std_doc_len), max_doc_len)
     else:
         truncate_doc_len = truncate_len[0]
-    print("Defined maximum document length: {} (sentences)".format(truncate_doc_len))
-    print('Fraction of truncated documents: {}'.format(sum(tmp > truncate_doc_len for tmp in tmp_list)/len(tmp_list)))
+    print("Defined maximum document length: {} (sentences)".format(
+        truncate_doc_len))
+    print('Fraction of truncated documents: {}'.format(
+        sum(tmp > truncate_doc_len for tmp in tmp_list) / len(tmp_list)))
 
     len_avg = [avg_doc_len, avg_sent_len]
     len_std = [std_doc_len, std_sent_len]
@@ -321,7 +352,8 @@ def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, tr
 
     if sup_source == 'labels' or sup_source == 'keywords':
         keywords = load_keywords(data_path, sup_source)
-        return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, len_std, keywords, perm
+        return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, \
+               len_std, keywords, perm
     elif sup_source == 'docs':
         if dataset_name == 'nyt':
             class_type = 'topic'
@@ -331,12 +363,19 @@ def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True, tr
             class_type = 'sentiment'
         elif dataset_name == 'hatespeech':
             class_type = 'topic'
-        keywords, sup_idx = extract_keywords(data_path, vocabulary, class_type, num_keywords, data_copy, perm)
-        return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, len_std, keywords, sup_idx, perm
+        keywords, sup_idx = extract_keywords(data_path, vocabulary, class_type,
+                                             num_keywords, data_copy, perm)
+        return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, \
+               len_std, keywords, sup_idx, perm
 
 
-def load_dataset(dataset_name, sup_source, model='cnn', with_evaluation=True, truncate_len=None):
+def load_dataset(dataset_name, sup_source, model='cnn', with_evaluation=True,
+                 truncate_len=None):
     if model == 'cnn':
-        return load_cnn(dataset_name, sup_source, with_evaluation=with_evaluation, truncate_len=truncate_len)
+        return load_cnn(dataset_name, sup_source,
+                        with_evaluation=with_evaluation,
+                        truncate_len=truncate_len)
     elif model == 'rnn':
-        return load_rnn(dataset_name, sup_source, with_evaluation=with_evaluation, truncate_len=truncate_len)
+        return load_rnn(dataset_name, sup_source,
+                        with_evaluation=with_evaluation,
+                        truncate_len=truncate_len)

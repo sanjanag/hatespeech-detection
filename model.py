@@ -9,6 +9,7 @@ from keras.engine.topology import Layer
 from keras.layers import Dense, Input, Convolution1D, Embedding, GlobalMaxPooling1D, GRU, TimeDistributed
 from keras.layers.merge import Concatenate
 from keras.models import Model
+from sklearn.metrics import classification_report
 from keras import initializers, regularizers, constraints
 from keras.initializers import VarianceScaling, RandomUniform
 from sklearn.metrics import f1_score
@@ -25,7 +26,7 @@ def f1(y_true, y_pred):
 def ConvolutionLayer(input_shape, n_classes, filter_sizes=[2, 3, 4, 5], num_filters=20, word_trainable=False, vocab_sz=None,
                      embedding_matrix=None, word_embedding_dim=100, hidden_dim=20, act='relu', init='ones'):
     x = Input(shape=(input_shape,), name='input')
-    z = Embedding(vocab_sz, word_embedding_dim, input_length=(input_shape,), name="embedding", 
+    z = Embedding(vocab_sz, word_embedding_dim, input_length=(input_shape,), name="embedding",
                     weights=[embedding_matrix], trainable=word_trainable)(x)
     conv_blocks = []
     for sz in filter_sizes:
@@ -48,7 +49,7 @@ def dot_product(x, kernel):
         return K.squeeze(K.dot(x, K.expand_dims(kernel)), axis=-1)
     else:
         return K.dot(x, kernel)
-    
+
 
 class AttentionWithContext(Layer):
     def __init__(self,
@@ -139,7 +140,7 @@ def HierAttLayer(input_shape, n_classes, word_trainable=False, vocab_sz=None,
     l_dense_sent = TimeDistributed(Dense(fc_dim))(l_lstm_sent)
     l_att_sent = AttentionWithContext()(l_dense_sent)
     y = Dense(n_classes, activation='softmax')(l_att_sent)
-    
+
     return Model(inputs=x, outputs=y, name='classifier')
 
 
@@ -162,13 +163,13 @@ class WSTC(object):
         self.n_classes = n_classes
         if model == 'cnn':
             self.classifier = ConvolutionLayer(self.input_shape[1], n_classes=n_classes,
-                                                vocab_sz=vocab_sz, embedding_matrix=embedding_matrix, 
+                                                vocab_sz=vocab_sz, embedding_matrix=embedding_matrix,
                                                 word_embedding_dim=word_embedding_dim, init=init)
         elif model == 'rnn':
             self.classifier = HierAttLayer(self.input_shape, n_classes=n_classes,
-                                             vocab_sz=vocab_sz, embedding_matrix=embedding_matrix, 
+                                             vocab_sz=vocab_sz, embedding_matrix=embedding_matrix,
                                              word_embedding_dim=word_embedding_dim)
-        
+
         self.model = self.classifier
         self.sup_list = {}
 
@@ -221,6 +222,7 @@ class WSTC(object):
 
         pred = self.classifier.predict(x)
         y_pred = np.argmax(pred, axis=1)
+        print(classification_report(y, y_pred))
         y_pred_last = np.copy(y_pred)
 
         # logging file
@@ -241,10 +243,11 @@ class WSTC(object):
                 print('\nIter {}: '.format(ite), end='')
                 if y is not None:
                     f1_macro, f1_micro = np.round(f1(y, y_pred), 5)
+                    print(classification_report(y, y_pred))
                     logdict = dict(iter=ite, f1_macro=f1_macro, f1_micro=f1_micro)
                     logwriter.writerow(logdict)
                     print('f1_macro = {}, f1_micro = {}'.format(f1_macro, f1_micro))
-                    
+
                 # check stop criterion
                 delta_label = np.sum(y_pred != y_pred_last).astype(np.float) / y_pred.shape[0]
                 y_pred_last = np.copy(y_pred)
