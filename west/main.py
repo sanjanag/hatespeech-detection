@@ -4,17 +4,17 @@ np.random.seed(1234)
 from time import time
 import os
 # os.environ["CUDA_VISIBLE_DEVICES"]="0"
-from west.model import WSTC, f1
+from model import WSTC, f1
 from keras.optimizers import SGD
-from west.gen import augment, pseudodocs
-from west.load_data import load_dataset
+from gen import augment, pseudodocs
+from load_data import load_dataset
 from gensim.models import word2vec
 
 
 def train_word2vec(sentence_matrix, vocabulary_inv, dataset_name,
                    mode='skipgram',
                    num_features=100, min_word_count=5, context=5):
-    model_dir = './' + dataset_name
+    model_dir = '../' + dataset_name
     model_name = "embedding"
     model_name = os.path.join(model_dir, model_name)
     if os.path.exists(model_name):

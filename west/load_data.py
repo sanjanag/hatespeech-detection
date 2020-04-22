@@ -23,7 +23,7 @@ def read_file(data_dir, with_evaluation):
             elif data_dir == './yelp':
                 data.append(row[1])
                 target.append(int(row[0]) - 1)
-            elif data_dir == './hatespeech':
+            elif data_dir == '../hatespeech':
                 data.append(row[1])
                 target.append(int(row[0]))
     if with_evaluation:
@@ -218,7 +218,7 @@ def load_keywords(data_path, sup_source):
 
 def load_cnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
              truncate_len=None):
-    data_path = './' + dataset_name
+    data_path = '../' + dataset_name
     data, y = read_file(data_path, with_evaluation)
 
     sz = len(data)

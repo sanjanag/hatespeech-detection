@@ -6,7 +6,7 @@ import spacy
 from nltk.stem.porter import *
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import classification_report
-from utils import read_file, preprocess
+from utils import read_file, preprocess, stem
 
 nlp = spacy.load('en_core_web_sm')
 stemmer = PorterStemmer()
@@ -24,20 +24,14 @@ else:
 
 
 # Define keywords
-keywords = {
-    1: ['new', 'free', 'video',
-        'check', 'win', 'follow',
-        'join', 'enter', 'click',
-        'visit', 'avail', 'download'],
-    2: ['fuck', 'bitch', 'ass',
-        'idiot', 'shit', 'hate',
-        'stupid', 'ugli', 'god',
-        'hell', 'mad', 'sick'],
-    3: ['nigga', 'hate', 'fuck',
-        'bitch', 'hell', 'kill',
-        'black', 'syria', 'god',
-        'islam', 'women', 'muslim']
+keywords= {
+    1:['new','free','video','check','win'],
+    2:['fucked','bitch','pussy','ass','ugly'],
+    3:['hate','racist','muslims', 'retarded', 'isis']
 }
+
+for class_label, words in keywords.items():
+    keywords[class_label] = [stem(w) for w in words]
 
 # get tf idf features
 vectorizer = TfidfVectorizer(input='content', encoding='ascii',
