@@ -30,6 +30,8 @@ keywords = {
     3: ['hate', 'racist', 'muslims', 'retarded', 'isis']
 }
 
+
+
 for class_label, words in keywords.items():
     keywords[class_label] = [stem(w) for w in words]
 
