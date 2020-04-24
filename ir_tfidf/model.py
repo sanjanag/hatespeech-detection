@@ -23,11 +23,18 @@ else:
 
 # Define keywords
 # Define keywords
+# keywords = {
+#     0: ['time', 'love', 'good', 'great', 'happy'],
+#     1: ['new', 'free', 'video', 'check', 'win'],
+#     2: ['fucked', 'bitch', 'pussy', 'ass', 'ugly'],
+#     3: ['hate', 'racist', 'muslims', 'retarded', 'isis']
+# }
+
 keywords = {
-    0: ['time', 'love', 'good', 'great', 'happy'],
-    1: ['new', 'free', 'video', 'check', 'win'],
-    2: ['fucked', 'bitch', 'pussy', 'ass', 'ugly'],
-    3: ['hate', 'racist', 'muslims', 'retarded', 'isis']
+    0: ['love', 'people', 'time', 'day', 'life'],
+    1: ['free', 'video', 'join', 'check', 'win'],
+    2: ['fucked', 'ass', 'bitch', 'bad', 'shit'],
+    3: ['hate', 'nigga', 'idiot', 'ass', 'trump']
 }
 
 

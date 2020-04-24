@@ -1,3 +1,4 @@
+*.ipynb_checkpoints/
 results/
 *final.h5
 *pretrained.h5

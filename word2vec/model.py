@@ -16,11 +16,11 @@ from sklearn.metrics.pairwise import cosine_similarity
 from utils import read_file, clean_twitter
 nltk_stopwords = stopwords.words('english')
 
-with open('./stopwords.txt', 'r') as f:
-    extended_stopwords = f.readlines()
-extended_stopwords = [word.strip('\n') for word in extended_stopwords]
-
-stop_words = set(nltk_stopwords + extended_stopwords)
+# with open('./stopwords.txt', 'r') as f:
+#     extended_stopwords = f.readlines()
+# extended_stopwords = [word.strip('\n') for word in extended_stopwords]
+#
+# stop_words = set(nltk_stopwords + extended_stopwords)
 
 def remove_punctuation(text):
     text = re.sub(r"[^A-Za-z`]", " ", text)
@@ -80,17 +80,23 @@ def get_embeddings(inp_data, vocabulary_inv, size_features=100,
 
 
 # Define keywords
+# keywords = {
+#     0: ['time', 'love', 'people', 'life', 'school'],
+#     1: ['enter', 'free', 'video', 'check', 'win'],
+#     2: ['shit', 'bitch', 'pussy', 'ass', 'idiot'],
+#     3: ['hate', 'racist', 'muslims', 'retarded', 'isis']
+# }
+# keywords = {
+#     0: ['time', 'love', 'good', 'great', 'happy'],
+#     1: ['new', 'free', 'video', 'check', 'win'],
+#     2: ['fucked', 'bitch', 'pussy', 'ass', 'ugly'],
+#     3: ['hate', 'racist', 'muslims', 'retarded', 'isis']
+# }
 keywords = {
-    0: ['time', 'love', 'people', 'life', 'school'],
-    1: ['enter', 'free', 'video', 'check', 'win'],
-    2: ['shit', 'bitch', 'pussy', 'ass', 'idiot'],
-    3: ['hate', 'racist', 'muslims', 'retarded', 'isis']
-}
-keywords = {
-    0: ['time', 'love', 'good', 'great', 'happy'],
-    1: ['new', 'free', 'video', 'check', 'win'],
-    2: ['fucked', 'bitch', 'pussy', 'ass', 'ugly'],
-    3: ['hate', 'racist', 'muslims', 'retarded', 'isis']
+    0: ['love', 'people', 'time', 'day', 'life'],
+    1: ['free', 'video', 'join', 'check', 'win'],
+    2: ['fucked', 'ass', 'bitch', 'bad', 'shit'],
+    3: ['hate', 'nigga', 'idiot', 'ass', 'trump']
 }
 
 
@@ -104,8 +110,7 @@ else:
     data = [clean_twitter(text) for text in data]
     data = [remove_punctuation(text) for text in data]
     tokenized = [word_tokenize(text) for text in data]
-    data = [[w for w in tokens if not w in stop_words] for tokens \
-            in tokenized]
+    data = tokenized
     with open('processed.pkl', 'wb') as f:
         pickle.dump((data, y), f)
 
