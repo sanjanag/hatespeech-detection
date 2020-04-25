@@ -246,6 +246,14 @@ def pseudodocs_tfidf(x, y, word_sup_array, num_doc, vocabulary_inv):
         docs[i] = x[doc_id]
         pred_label = y_pred[doc_id]
         label[i][pred_label] = 1
-    
+
+    # ###### Label all docs ####
+    # label = np.zeros((m, 4))
+    # for i in range(len(y_pred)):
+    #     cur_pred = y_pred[i]
+    #     label[i][cur_pred] = 1
+    # return x, label
+    # ###########################
+
     return docs, label
 
