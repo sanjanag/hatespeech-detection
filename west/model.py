@@ -29,12 +29,12 @@ def f1(y_true, y_pred):
 def ConvolutionLayer(input_shape,
                      n_classes,
                      filter_sizes=[2, 3, 4, 5],
-                     num_filters=20,
+                     num_filters=16,
                      word_trainable=False,
                      vocab_sz=None,
                      embedding_matrix=None,
                      word_embedding_dim=100,
-                     hidden_dim=20,
+                     hidden_dim=16,
                      act='relu',
                      init='ones'):
     x = Input(shape=(input_shape,), name='input')

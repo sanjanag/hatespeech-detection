@@ -5,7 +5,7 @@ from time import time
 import os
 # os.environ["CUDA_VISIBLE_DEVICES"]="0"
 from model import WSTC, f1
-from keras.optimizers import SGD
+from keras.optimizers import SGD, Adam
 from gen import augment, pseudodocs
 from load_data import load_dataset
 from gensim.models import word2vec
@@ -138,12 +138,12 @@ if __name__ == "__main__":
             max_sequence_length = 500
 
         elif args.dataset == 'hatespeech':
-            update_interval = 2
+            update_interval = 10
             pretrain_epochs = 10
-            self_lr = 1e-4
+            self_lr = 1e-3
             max_sequence_length = 114
 
-        decay = 1e-6
+        decay = 1e-5
 
     elif args.model == 'rnn':
 
@@ -282,7 +282,8 @@ if __name__ == "__main__":
 
         t0 = time()
         print("\n### Phase 3: self-training ###")
-        selftrain_optimizer = SGD(lr=self_lr, momentum=0.9, decay=decay)
+        selftrain_optimizer = SGD(lr=self_lr, momentum=0.9, decay=decay,
+                                  nesterov=True)
         wstc.compile(optimizer=selftrain_optimizer, loss='kld')
         y_pred = wstc.fit(x, y=y, tol=delta, maxiter=args.maxiter,
                           batch_size=args.batch_size,
