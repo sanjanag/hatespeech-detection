@@ -46,6 +46,9 @@ def clean_twitter(text):
     text = re.sub(r'&\w+;(\w)?', ' ', text)
     text = re.sub(r'(#[A-Za-z0-9_]+)', ' ', text)  # remove hashtags
     text = re.sub(r'(\.){2,}', '.', text)
+    text = re.sub(r"\s{2,}", " ", text)
+    # text = re.sub(r"[^A-Za-z0-9]", " ", text)
+    text = text.lower()
     return text
 
 def clean_str(string):

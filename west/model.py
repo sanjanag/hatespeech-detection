@@ -1,17 +1,20 @@
 import numpy as np
+
 np.random.seed(1234)
 import os
 from time import time
 import csv
 import keras.backend as K
-# K.set_session(K.tf.Session(config=K.tf.ConfigProto(intra_op_parallelism_threads=30, inter_op_parallelism_threads=30)))
+# K.set_session(K.tf.Session(config=K.tf.ConfigProto(
+# intra_op_parallelism_threads=30, inter_op_parallelism_threads=30)))
 from keras.engine.topology import Layer
-from keras.layers import Dense, Input, Convolution1D, Embedding, GlobalMaxPooling1D, GRU, TimeDistributed
+from keras.layers import Dense, Input, Convolution1D, Embedding, \
+    GlobalMaxPooling1D, GRU, TimeDistributed
 from keras.layers.merge import Concatenate
 from keras.models import Model
 from sklearn.metrics import classification_report
-from keras import initializers, regularizers, constraints
-from keras.initializers import VarianceScaling, RandomUniform
+from keras import regularizers, constraints
+from keras.initializers import RandomUniform
 from sklearn.metrics import f1_score
 
 
@@ -23,11 +26,21 @@ def f1(y_true, y_pred):
     return f1_macro, f1_micro
 
 
-def ConvolutionLayer(input_shape, n_classes, filter_sizes=[2, 3, 4, 5], num_filters=20, word_trainable=False, vocab_sz=None,
-                     embedding_matrix=None, word_embedding_dim=100, hidden_dim=20, act='relu', init='ones'):
+def ConvolutionLayer(input_shape,
+                     n_classes,
+                     filter_sizes=[2, 3, 4, 5],
+                     num_filters=20,
+                     word_trainable=False,
+                     vocab_sz=None,
+                     embedding_matrix=None,
+                     word_embedding_dim=100,
+                     hidden_dim=20,
+                     act='relu',
+                     init='ones'):
     x = Input(shape=(input_shape,), name='input')
-    z = Embedding(vocab_sz, word_embedding_dim, input_length=(input_shape,), name="embedding",
-                    weights=[embedding_matrix], trainable=word_trainable)(x)
+    z = Embedding(vocab_sz, word_embedding_dim, input_length=(input_shape,),
+                  name="embedding",
+                  weights=[embedding_matrix], trainable=word_trainable)(x)
     conv_blocks = []
     for sz in filter_sizes:
         conv = Convolution1D(filters=num_filters,
@@ -122,13 +135,14 @@ class AttentionWithContext(Layer):
 
 
 def HierAttLayer(input_shape, n_classes, word_trainable=False, vocab_sz=None,
-                embedding_matrix=None, word_embedding_dim=100, gru_dim=100, fc_dim=100):
+                 embedding_matrix=None, word_embedding_dim=100, gru_dim=100,
+                 fc_dim=100):
     sentence_input = Input(shape=(input_shape[2],), dtype='int32')
     embedded_sequences = Embedding(vocab_sz,
-                                    word_embedding_dim,
-                                    input_length=input_shape[2],
-                                    weights=[embedding_matrix],
-                                    trainable=word_trainable)(sentence_input)
+                                   word_embedding_dim,
+                                   input_length=input_shape[2],
+                                   weights=[embedding_matrix],
+                                   trainable=word_trainable)(sentence_input)
     l_lstm = GRU(gru_dim, return_sequences=True)(embedded_sequences)
     l_dense = TimeDistributed(Dense(fc_dim))(l_lstm)
     l_att = AttentionWithContext()(l_dense)
@@ -162,13 +176,18 @@ class WSTC(object):
         self.y = y
         self.n_classes = n_classes
         if model == 'cnn':
-            self.classifier = ConvolutionLayer(self.input_shape[1], n_classes=n_classes,
-                                                vocab_sz=vocab_sz, embedding_matrix=embedding_matrix,
-                                                word_embedding_dim=word_embedding_dim, init=init)
+            self.classifier = ConvolutionLayer(self.input_shape[1],
+                                               n_classes=n_classes,
+                                               vocab_sz=vocab_sz,
+                                               embedding_matrix=embedding_matrix,
+                                               word_embedding_dim=word_embedding_dim,
+                                               init=init)
         elif model == 'rnn':
-            self.classifier = HierAttLayer(self.input_shape, n_classes=n_classes,
-                                             vocab_sz=vocab_sz, embedding_matrix=embedding_matrix,
-                                             word_embedding_dim=word_embedding_dim)
+            self.classifier = HierAttLayer(self.input_shape,
+                                           n_classes=n_classes,
+                                           vocab_sz=vocab_sz,
+                                           embedding_matrix=embedding_matrix,
+                                           word_embedding_dim=word_embedding_dim)
 
         self.model = self.classifier
         self.sup_list = {}
@@ -188,13 +207,15 @@ class WSTC(object):
         # begin pretraining
         t0 = time()
         print('\nPretraining...')
-        self.classifier.fit(x, pretrain_labels, batch_size=batch_size, epochs=epochs)
+        self.classifier.fit(x, pretrain_labels, batch_size=batch_size,
+                            epochs=epochs)
         print('Pretraining time: {:.2f}s'.format(time() - t0))
         if save_dir is not None:
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
             self.classifier.save_weights(save_dir + '/pretrained.h5')
-            print('Pretrained model saved to {}/pretrained.h5'.format(save_dir))
+            print(
+                'Pretrained model saved to {}/pretrained.h5'.format(save_dir))
         self.pretrained = True
 
     def load_weights(self, weights):
@@ -205,7 +226,7 @@ class WSTC(object):
         return q.argmax(1)
 
     def target_distribution(self, q, power=2):
-        weight = q**power / q.sum(axis=0)
+        weight = q ** power / q.sum(axis=0)
         p = (weight.T / weight.sum(axis=1)).T
         for i in self.sup_list:
             p[i] = 0
@@ -228,8 +249,10 @@ class WSTC(object):
         # logging file
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-        logfile = open(save_dir + '/self_training_log_{}.csv'.format(save_suffix), 'w')
-        logwriter = csv.DictWriter(logfile, fieldnames=['iter', 'f1_macro', 'f1_micro'])
+        logfile = open(
+            save_dir + '/self_training_log_{}.csv'.format(save_suffix), 'w')
+        logwriter = csv.DictWriter(logfile,
+                                   fieldnames=['iter', 'f1_macro', 'f1_micro'])
         logwriter.writeheader()
 
         index = 0
@@ -244,22 +267,29 @@ class WSTC(object):
                 if y is not None:
                     f1_macro, f1_micro = np.round(f1(y, y_pred), 5)
                     print(classification_report(y, y_pred))
-                    logdict = dict(iter=ite, f1_macro=f1_macro, f1_micro=f1_micro)
+                    logdict = dict(iter=ite, f1_macro=f1_macro,
+                                   f1_micro=f1_micro)
                     logwriter.writerow(logdict)
-                    print('f1_macro = {}, f1_micro = {}'.format(f1_macro, f1_micro))
+                    print('f1_macro = {}, f1_micro = {}'.format(f1_macro,
+                                                                f1_micro))
 
                 # check stop criterion
-                delta_label = np.sum(y_pred != y_pred_last).astype(np.float) / y_pred.shape[0]
+                delta_label = np.sum(y_pred != y_pred_last).astype(np.float)\
+                              / \
+                              y_pred.shape[0]
                 y_pred_last = np.copy(y_pred)
-                print('Fraction of documents with label changes: {} %'.format(np.round(delta_label*100, 3)))
-                if ite > 0 and delta_label < tol/100:
-                    print('\nFraction: {} % < tol: {} %'.format(np.round(delta_label*100, 3), tol))
+                print('Fraction of documents with label changes: {} %'.format(
+                    np.round(delta_label * 100, 3)))
+                if ite > 0 and delta_label < tol / 100:
+                    print('\nFraction: {} % < tol: {} %'.format(
+                        np.round(delta_label * 100, 3), tol))
                     print('Reached tolerance threshold. Stopping training.')
                     logfile.close()
                     break
 
             # train on batch
-            idx = index_array[index * batch_size: min((index+1) * batch_size, x.shape[0])]
+            idx = index_array[index * batch_size: min((index + 1) * batch_size,
+                                                      x.shape[0])]
             self.model.train_on_batch(x=x[idx], y=p[idx])
             index = index + 1 if (index + 1) * batch_size <= x.shape[0] else 0
 

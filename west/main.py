@@ -105,7 +105,7 @@ if __name__ == "__main__":
     # number of generated pseudo documents per class (beta): 500 (default)
     parser.add_argument('--beta', default=500, type=int)
     # keyword vocabulary size (gamma): 50 (default)
-    parser.add_argument('--gamma', default=100, type=int)
+    parser.add_argument('--gamma', default=50, type=int)
     # self-training stopping criterion (delta): None (default)
     parser.add_argument('--delta', default=0.1, type=float)
 
@@ -303,4 +303,4 @@ if __name__ == "__main__":
                                                                   f1_micro))
 
     print("\n### Generating outputs ###")
-    write_output('./' + args.dataset, y_pred, perm)
+    write_output('../' + args.dataset, y_pred, perm)

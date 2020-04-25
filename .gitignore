@@ -7,4 +7,4 @@ results/
 __pycache__/
 *.DS_Store
 data/*
-jupyter_notebooks/.ipynb_checkpoints/*
+supervised/.ipynb_checkpoints/*
