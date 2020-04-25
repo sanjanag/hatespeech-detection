@@ -1,8 +1,8 @@
 import numpy as np
 import os
 np.random.seed(1234)
-from spherecluster import SphericalKMeans, VonMisesFisherMixture, sample_vMF
-# from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+# from spherecluster import SphericalKMeans, VonMisesFisherMixture, sample_vMF
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from utils import stem
 
 
