@@ -275,8 +275,10 @@ class WSTC(object):
         logfile = open(
             save_dir + '/self_training_log_{}.csv'.format(save_suffix), 'w')
         logwriter = csv.DictWriter(logfile,
-                                   fieldnames=['iter', 'f1_macro',
-                                               'f1_micro', 'loss'])
+                                   fieldnames=['iter', 'acc' 'f1_macro',
+                                               'f1_micro', 'f1_normal',
+                                               'f1_spam', 'f1_abusive',
+                                               'f1_hateful'])
         logwriter.writeheader()
 
         index = 0
@@ -291,9 +293,16 @@ class WSTC(object):
                 # print('\nIter {}: '.format(ite), end='')
                 if y is not None:
                     f1_macro, f1_micro = np.round(f1(y, y_pred), 5)
-                    print(classification_report(y, y_pred))
-                    logdict = dict(iter=ite, f1_macro=f1_macro,
-                                   f1_micro=f1_micro)
+                    report = classification_report(y, y_pred, output_dict=True)
+                    print(report)
+                    logdict = dict(iter=ite,
+                                   acc=round(report['accuracy'], 5),
+                                   f1_macro=round(report['macro avg']['f1-score'], 5),
+                                   f1_micro=round(report['weighted_avg']['f1-score'], 5),
+                                   f1_normal = round(report['0']['f1-score'], 5),
+                                   f1_spam = round(report['1']['f1-score'], 5),
+                                   f1_abusive = round(report['2']['f1-score'], 5),
+                                   f1_hateful = round(report['3']['f1-score'],5))
                     logwriter.writerow(logdict)
                     print('f1_macro = {}, f1_micro = {}'.format(f1_macro,
                                                                 f1_micro))
