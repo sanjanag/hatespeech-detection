@@ -7,6 +7,8 @@ from os.path import join
 import numpy as np
 from nltk import tokenize
 
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
 
 def read_file(data_dir, with_evaluation):
     data = []
@@ -140,48 +142,50 @@ def extract_keywords(data_path, vocab, class_type, num_keywords, data, perm):
             sup_data.append(" ".join(data[idx]))
             sup_label.append(i)
 
-    from sklearn.feature_extraction.text import TfidfVectorizer
+
+    from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
     import nltk
 
-    tfidf = TfidfVectorizer(norm='l2', sublinear_tf=True, max_df=0.2,
-                            stop_words='english')
-    sup_x = tfidf.fit_transform(sup_data)
-    sup_x = np.asarray(sup_x.todense())
+    with open('stopwords.txt', 'r') as f:
+        lines = f.readlines()
+    stopwords = [w.strip() for w in lines]
 
-    vocab_dict = tfidf.vocabulary_
-    vocab_inv_dict = {v: k for k, v in vocab_dict.items()}
+    count_vectorizer = CountVectorizer(input='content',
+                                       analyzer='word',
+                                       strip_accents='ascii',
+                                       ngram_range=(1, 1),
+                                       stop_words=stopwords)
+    count = count_vectorizer.fit_transform(sup_data)
+    features = np.array(count_vectorizer.get_feature_names())
+    freq = count.copy()
+    count[count > 0] = 1
 
     print("\n### Supervision type: Labeled documents ###")
     print("Extracted keywords for each class: ")
     keywords = []
     cnt = 0
+    rankingdf = pd.DataFrame(columns=['word', 'rel_doc_freq',
+                                      'avg_freq', 'idf'])
+    rankingdf['word'] = features
     for i in range(len(sup_idx)):
-        class_vec = np.average(sup_x[cnt:cnt + len(sup_idx[i])], axis=0)
+        start = cnt
+        end = cnt + len(sup_idx[i])
         cnt += len(sup_idx[i])
-        sort_idx = np.argsort(class_vec)[::-1]
-        keyword = []
-        if class_type == 'topic':
-            j = 0
-            k = 0
-            while j < num_keywords:
-                w = vocab_inv_dict[sort_idx[k]]
-                if w in vocab:
-                    keyword.append(vocab_inv_dict[sort_idx[k]])
-                    j += 1
-                k += 1
-        elif class_type == 'sentiment':
-            j = 0
-            k = 0
-            while j < num_keywords:
-                w = vocab_inv_dict[sort_idx[k]]
-                w, t = nltk.pos_tag([w])[0]
-                if t.startswith("J") and w in vocab:
-                    keyword.append(w)
-                    j += 1
-                k += 1
-        print("Class {}:".format(i))
-        print(keyword)
+        class_docs = count[start: end]
+        rel_doc_freq = np.array(class_docs.sum(axis=0) / class_docs.shape[0])[0]
+        avg_freq = np.array(freq[start:end].sum(axis=0) /class_docs.shape[0])[0]
+        rankingdf['rel_doc_freq'] = rel_doc_freq
+        rankingdf['avg_freq'] = avg_freq
+        rankingdf['idf'] = np.log(np.array(count.shape[0] / count.sum(axis=0))[0])
+
+        scaler = MinMaxScaler()
+        scaler.fit(rankingdf[['rel_doc_freq', 'idf', 'avg_freq']])
+        rankingdf[['rel_doc_freq', 'idf', 'avg_freq']] = scaler.transform(rankingdf[['rel_doc_freq', 'idf', 'avg_freq']])
+        rankingdf['comb'] = np.cbrt(rankingdf['rel_doc_freq'] * rankingdf['idf'] * rankingdf['avg_freq'])
+        keyword = rankingdf.sort_values(by=['comb'], ascending=False).head(
+            num_keywords)['word'].tolist()
         keywords.append(keyword)
+
 
     new_sup_idx = []
     m = {v: k for k, v in enumerate(perm)}
@@ -286,7 +290,7 @@ def load_cnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
 
 def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
              truncate_len=None):
-    data_path = './' + dataset_name
+    data_path = '../' + dataset_name
     data, y = read_file(data_path, with_evaluation)
 
     sz = len(data)

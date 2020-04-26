@@ -293,21 +293,16 @@ class WSTC(object):
         index_array = np.arange(x.shape[0])
         for ite in range(int(maxiter)):
             print('\nIter {}: '.format(ite), end='')
-            # q = self.model.predict(x, verbose=0)
-            # y_pred = q.argmax(axis=1)
-            # delta_label = np.sum(y_pred != y_pred_last).astype(np.float) \
-            #               / y_pred.shape[0]
-            # if ite == 0 or delta_label > tol:
+
             if ite % update_interval == 0:
                 q = self.model.predict(x, verbose=0)
-
                 y_pred = q.argmax(axis=1)
                 p = self.target_distribution(q, power)
 
                 if y is not None:
                     f1_macro, f1_micro = np.round(f1(y, y_pred), 5)
                     report = classification_report(y, y_pred, output_dict=True)
-                    print(report)
+                    print(classification_report(y, y_pred))
                     logdict = dict(iter=ite,
                                    acc=round(report['accuracy'], 5),
                                    f1_macro=round(
