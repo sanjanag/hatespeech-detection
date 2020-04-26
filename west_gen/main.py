@@ -6,7 +6,7 @@ import os
 # os.environ["CUDA_VISIBLE_DEVICES"]="0"
 from model import WSTC, f1
 from keras.optimizers import SGD, Adam
-from gen import augment, pseudodocs, pseudodocs_tfidf
+from gen import augment, pseudodocs, pseudodocs_tfidf, pseudodocs_counting_based
 from load_data import load_dataset
 from gensim.models import word2vec
 
@@ -233,6 +233,7 @@ if __name__ == "__main__":
             "\n### Phase 1: pseudo document "
             "generation ###")
 
+        # vMF distribution fitting based
         # word_sup_array = np.array(
         #     [np.array([vocabulary[word] for word in word_class_list]) for
         #      word_class_list in word_sup_list])
@@ -252,8 +253,13 @@ if __name__ == "__main__":
         #                                    './results/{}/{}/phase1/'.format(
         #                                        args.dataset, args.model))
 
-        seed_docs, seed_label = pseudodocs_tfidf(x, y, word_sup_list, beta,
-                                           vocabulary_inv)
+        # tf-idf based 
+        # seed_docs, seed_label = pseudodocs_tfidf(x, word_sup_list, beta,
+        #                                    vocabulary_inv)
+
+        # counting based
+        seed_docs, seed_label = pseudodocs_counting_based(x, word_sup_list, beta,
+                                           vocabulary_inv) 
 
 
         if args.sup_source == 'docs':
