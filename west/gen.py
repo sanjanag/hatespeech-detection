@@ -48,10 +48,10 @@ def label_expansion(class_labels, write_path, vocabulary_inv, embedding_mat):
         current_sz += 1
         expanded_array = seed_expansion(class_labels, prob_sup_array, current_sz, None, vocabulary_inv, embedding_mat)
         all_class_labels = [w for w_class in expanded_array for w in w_class]
-    
+
     expanded_array = seed_expansion(class_labels, prob_sup_array, current_sz-1, None, vocabulary_inv, embedding_mat)
     print("Final expansion size t = {}".format(len(expanded_array[0])))
-    
+
     centers = []
     kappas = []
     print("Top-t nearest words for each class:")
@@ -61,13 +61,13 @@ def label_expansion(class_labels, write_path, vocabulary_inv, embedding_mat):
         print("Class {}:".format(i))
         print(vocab_expanded)
         expanded_mat = embedding_mat[np.asarray(expanded_class)]
-        vmf_soft = VonMisesFisherMixture(n_clusters=1, n_jobs=15)
+        vmf_soft = VonMisesFisherMixture(n_clusters=1)
         vmf_soft.fit(expanded_mat)
         center = vmf_soft.cluster_centers_[0]
         kappa = vmf_soft.concentrations_[0]
         centers.append(center)
         kappas.append(kappa)
-    
+
     for j, expanded_class in enumerate(expanded_array):
         if write_path is not None:
             if not os.path.exists(write_path):
@@ -82,7 +82,7 @@ def label_expansion(class_labels, write_path, vocabulary_inv, embedding_mat):
 
 def pseudodocs(word_sup_array, total_num, background_array, sequence_length, len_avg,
                 len_std, num_doc, interp_weight, vocabulary_inv, embedding_mat, model, save_dir=None):
-    
+
     for i in range(len(embedding_mat)):
         embedding_mat[i] = embedding_mat[i] / np.linalg.norm(embedding_mat[i])
 

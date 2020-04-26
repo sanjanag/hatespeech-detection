@@ -75,14 +75,14 @@ if __name__ == "__main__":
 
     ### Basic settings ###
     # dataset selection: AG's News (default) and Yelp Review
-    parser.add_argument('--dataset', default='agnews',
+    parser.add_argument('--dataset', default='hatespeech',
                         choices=['agnews', 'yelp', 'hatespeech'])
     # neural model selection: Convolutional Neural Network (default) and
     # Hierarchical Attention Network
     parser.add_argument('--model', default='cnn', choices=['cnn', 'rnn'])
     # weak supervision selection: label surface names (default),
     # class-related keywords and labeled documents
-    parser.add_argument('--sup_source', default='labels',
+    parser.add_argument('--sup_source', default='keywords',
                         choices=['labels', 'keywords', 'docs'])
     # whether ground truth labels are available for evaluation: True (
     # default), False
@@ -139,8 +139,8 @@ if __name__ == "__main__":
 
         elif args.dataset == 'hatespeech':
             update_interval = 10
-            pretrain_epochs = 10
-            self_lr = 1e-3
+            pretrain_epochs = 20
+            self_lr = 1e-4
             max_sequence_length = 114
 
         decay = 1e-5
@@ -198,8 +198,7 @@ if __name__ == "__main__":
                          truncate_len=max_sequence_length)
 
     np.random.seed(1234)
-    vocabulary_inv = {key: value for key, value in enumerate(
-        vocabulary_inv_list)}
+    vocabulary_inv = {key: value for key, value in enumerate(vocabulary_inv_list)}
     vocab_sz = len(vocabulary_inv)
     n_classes = len(word_sup_list)
 
@@ -249,6 +248,9 @@ if __name__ == "__main__":
                                            args.model,
                                            './results/{}/{}/phase1/'.format(
                                                args.dataset, args.model))
+        import  pickle
+        with open('../hatespeech/pseudodocs.pkl', 'wb') as f:
+            pickle.dump([seed_docs, seed_label, vocabulary_inv], f)
 
         if args.sup_source == 'docs':
             if args.model == 'cnn':
@@ -256,9 +258,8 @@ if __name__ == "__main__":
             elif args.model == 'rnn':
                 num_real_doc = len(sup_idx.flatten())
             real_seed_docs, real_seed_label = augment(x, sup_idx, num_real_doc)
-            seed_docs = real_seed_docs#np.concatenate((seed_docs, real_seed_docs), axis=0)
-            seed_label = real_seed_label#np.concatenate((seed_label, real_seed_label),
-            # axis=0)
+            seed_docs = np.concatenate((seed_docs, real_seed_docs), axis=0)
+            seed_label = np.concatenate((seed_label, real_seed_label),axis=0)
 
         perm_seed = np.random.permutation(len(seed_label))
         seed_docs = seed_docs[perm_seed]

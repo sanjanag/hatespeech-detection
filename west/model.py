@@ -17,6 +17,24 @@ from keras import regularizers, constraints
 from keras.initializers import RandomUniform
 from sklearn.metrics import f1_score
 
+from keras.callbacks import Callback, EarlyStopping
+
+class TerminateOnBaseline(Callback):
+    """Callback that terminates training when either acc or val_acc reaches a specified baseline
+    """
+    def __init__(self, monitor='val_loss', baseline=0.1):
+        super(TerminateOnBaseline, self).__init__()
+        self.monitor = monitor
+        self.baseline = baseline
+
+    def on_epoch_end(self, epoch, logs=None):
+        logs = logs or {}
+        acc = logs.get(self.monitor)
+        if acc is not None:
+            if acc < self.baseline:
+                print('Epoch %d: Reached baseline, terminating training' % (epoch))
+                self.model.stop_training = True
+
 
 def f1(y_true, y_pred):
     y_true = y_true.astype(np.int64)
@@ -207,8 +225,13 @@ class WSTC(object):
         # begin pretraining
         t0 = time()
         print('\nPretraining...')
-        self.classifier.fit(x, pretrain_labels, batch_size=batch_size,
-                            epochs=epochs)
+
+        history = self.classifier.fit(x, pretrain_labels,
+                                     batch_size=batch_size,
+                            validation_split=0.2,
+                            epochs=epochs, callbacks=[EarlyStopping(
+                monitor='val_loss', restore_best_weights=True)])
+        print(history.history.keys())
         print('Pretraining time: {:.2f}s'.format(time() - t0))
         if save_dir is not None:
             if not os.path.exists(save_dir):
@@ -252,23 +275,34 @@ class WSTC(object):
         logfile = open(
             save_dir + '/self_training_log_{}.csv'.format(save_suffix), 'w')
         logwriter = csv.DictWriter(logfile,
-                                   fieldnames=['iter', 'f1_macro', 'f1_micro'])
+                                   fieldnames=['iter', 'acc' 'f1_macro',
+                                               'f1_micro', 'f1_normal',
+                                               'f1_spam', 'f1_abusive',
+                                               'f1_hateful'])
         logwriter.writeheader()
 
         index = 0
         index_array = np.arange(x.shape[0])
         for ite in range(int(maxiter)):
+            print('\nIter {}: '.format(ite), end='')
             if ite % update_interval == 0:
                 q = self.model.predict(x, verbose=0)
 
                 y_pred = q.argmax(axis=1)
                 p = self.target_distribution(q, power)
-                print('\nIter {}: '.format(ite), end='')
+                # print('\nIter {}: '.format(ite), end='')
                 if y is not None:
                     f1_macro, f1_micro = np.round(f1(y, y_pred), 5)
-                    print(classification_report(y, y_pred))
-                    logdict = dict(iter=ite, f1_macro=f1_macro,
-                                   f1_micro=f1_micro)
+                    report = classification_report(y, y_pred, output_dict=True)
+                    print(report)
+                    logdict = dict(iter=ite,
+                                   acc=round(report['accuracy'], 5),
+                                   f1_macro=round(report['macro avg']['f1-score'], 5),
+                                   f1_micro=round(report['weighted_avg']['f1-score'], 5),
+                                   f1_normal = round(report['0']['f1-score'], 5),
+                                   f1_spam = round(report['1']['f1-score'], 5),
+                                   f1_abusive = round(report['2']['f1-score'], 5),
+                                   f1_hateful = round(report['3']['f1-score'],5))
                     logwriter.writerow(logdict)
                     print('f1_macro = {}, f1_micro = {}'.format(f1_macro,
                                                                 f1_micro))
@@ -277,7 +311,7 @@ class WSTC(object):
                 delta_label = np.sum(y_pred != y_pred_last).astype(np.float)\
                               / \
                               y_pred.shape[0]
-                y_pred_last = np.copy(y_pred)
+                print('Number of documents with label changes: {}'.format(np.sum(y_pred != y_pred_last)))
                 print('Fraction of documents with label changes: {} %'.format(
                     np.round(delta_label * 100, 3)))
                 if ite > 0 and delta_label < tol / 100:
@@ -286,11 +320,14 @@ class WSTC(object):
                     print('Reached tolerance threshold. Stopping training.')
                     logfile.close()
                     break
+                y_pred_last = np.copy(y_pred)
 
             # train on batch
             idx = index_array[index * batch_size: min((index + 1) * batch_size,
                                                       x.shape[0])]
-            self.model.train_on_batch(x=x[idx], y=p[idx])
+
+            batch_loss = self.model.train_on_batch(x=x[idx], y=p[idx])
+            print("Training loss", str(batch_loss))
             index = index + 1 if (index + 1) * batch_size <= x.shape[0] else 0
 
             ite += 1
