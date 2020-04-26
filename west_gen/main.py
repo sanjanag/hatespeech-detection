@@ -268,9 +268,8 @@ if __name__ == "__main__":
             elif args.model == 'rnn':
                 num_real_doc = len(sup_idx.flatten())
             real_seed_docs, real_seed_label = augment(x, sup_idx, num_real_doc)
-            seed_docs = real_seed_docs#np.concatenate((seed_docs, real_seed_docs), axis=0)
-            seed_label = real_seed_label#np.concatenate((seed_label, real_seed_label),
-            # axis=0)
+            np.concatenate((seed_docs, real_seed_docs), axis=0)
+            np.concatenate((seed_label, real_seed_label), axis=0)
 
         perm_seed = np.random.permutation(len(seed_label))
         seed_docs = seed_docs[perm_seed]

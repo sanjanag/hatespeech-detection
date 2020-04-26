@@ -1,7 +1,7 @@
 import numpy as np
 import os
 np.random.seed(1234)
-# from spherecluster import SphericalKMeans, VonMisesFisherMixture, sample_vMF
+from spherecluster import SphericalKMeans, VonMisesFisherMixture, sample_vMF
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from utils import stem
 
@@ -63,7 +63,7 @@ def label_expansion(class_labels, write_path, vocabulary_inv, embedding_mat):
         print("Class {}:".format(i))
         print(vocab_expanded)
         expanded_mat = embedding_mat[np.asarray(expanded_class)]
-        vmf_soft = VonMisesFisherMixture(n_clusters=1, n_jobs=15)
+        vmf_soft = VonMisesFisherMixture(n_clusters=1)
         vmf_soft.fit(expanded_mat)
         center = vmf_soft.cluster_centers_[0]
         kappa = vmf_soft.concentrations_[0]

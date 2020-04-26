@@ -17,6 +17,24 @@ from keras import regularizers, constraints
 from keras.initializers import RandomUniform
 from sklearn.metrics import f1_score
 
+from keras.callbacks import Callback, EarlyStopping
+
+class TerminateOnBaseline(Callback):
+    """Callback that terminates training when either acc or val_acc reaches a specified baseline
+    """
+    def __init__(self, monitor='val_loss', baseline=0.1):
+        super(TerminateOnBaseline, self).__init__()
+        self.monitor = monitor
+        self.baseline = baseline
+
+    def on_epoch_end(self, epoch, logs=None):
+        logs = logs or {}
+        acc = logs.get(self.monitor)
+        if acc is not None:
+            if acc < self.baseline:
+                print('Epoch %d: Reached baseline, terminating training' % (epoch))
+                self.model.stop_training = True
+
 
 def f1(y_true, y_pred):
     y_true = y_true.astype(np.int64)
@@ -209,6 +227,13 @@ class WSTC(object):
         print('\nPretraining...')
         self.classifier.fit(x, pretrain_labels, batch_size=batch_size,
                             epochs=epochs)
+		
+		# Early stopping
+		#self.classifier.fit(x, pretrain_labels,
+        #                             batch_size=batch_size,
+        #                    validation_split=0.2,
+        #                    epochs=epochs, callbacks=[EarlyStopping(
+        #        monitor='val_loss', restore_best_weights=True)])
         print('Pretraining time: {:.2f}s'.format(time() - t0))
         if save_dir is not None:
             if not os.path.exists(save_dir):
@@ -290,7 +315,9 @@ class WSTC(object):
             # train on batch
             idx = index_array[index * batch_size: min((index + 1) * batch_size,
                                                       x.shape[0])]
-            self.model.train_on_batch(x=x[idx], y=p[idx])
+
+            batch_loss = self.model.train_on_batch(x=x[idx], y=p[idx])
+			print("Training loss", str(batch_loss))
             index = index + 1 if (index + 1) * batch_size <= x.shape[0] else 0
 
             ite += 1
