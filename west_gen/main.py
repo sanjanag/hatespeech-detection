@@ -9,8 +9,28 @@ from keras.optimizers import SGD, Adam
 from gen import augment, pseudodocs, pseudodocs_tfidf, pseudodocs_counting_based
 from load_data import load_dataset
 from gensim.models import word2vec
+from use.model import get_use_embeddings
 from flair.data import Sentence
 from flair.embeddings import BertEmbeddings
+import tensorflow_hub as hub
+import tensorflow as tf
+
+def train_use(vocabulary, dataset_name):
+    vector_size = 512
+    model_dir = '../' + dataset_name
+    embed_name = "use_embeddings.npy"
+    embed_file = os.path.join(model_dir, embed_name)
+    if os.path.exists(embed_file):
+        all_embeddings = np.load(embed_file, allow_pickle='TRUE').item()    
+    else:
+        all_embeddings = get_use_embeddings()
+    
+    embedding_weights = {
+        i : all_embeddings[word] if word in all_embeddings else
+        np.random.uniform(-0.25, 0.25, vector_size)
+        for i, word in enumerate(vocabulary.keys())}
+    
+    return embedding_weights
 
 def train_bert(sentence_matrix, vocabulary, vocabulary_inv, dataset_name):
     model_dir = '../' + dataset_name
@@ -22,7 +42,6 @@ def train_bert(sentence_matrix, vocabulary, vocabulary_inv, dataset_name):
     all_embeddings = {}
     sentences = [" ".join([vocabulary_inv[w] for w in s]) for s in sentence_matrix]
     model = BertEmbeddings('bert-base-uncased', pooling_operation="mean")
-    
     for sentence in sentences:
         sent = Sentence(sentence, use_tokenizer=True)
         model.embed(sent)
@@ -30,11 +49,9 @@ def train_bert(sentence_matrix, vocabulary, vocabulary_inv, dataset_name):
             word = token.text
             embedding = token.embedding.cpu().numpy()
             all_embeddings[word] = embedding
-
     embedding_weights = {
         vocabulary[word]: vector
         for word, vector in all_embeddings.items()}
-
     np.save(embed_file, embedding_weights) 
     return embedding_weights
 
@@ -148,7 +165,7 @@ if __name__ == "__main__":
     gamma = args.gamma
     delta = args.delta
 
-    word_embedding_dim = 3072#100
+    word_embedding_dim = 512#33072#100
 
     if args.model == 'cnn':
 
@@ -246,7 +263,9 @@ if __name__ == "__main__":
 
     print("\n### Input preparation ###")
     # embedding_weights = train_word2vec(x, vocabulary_inv, args.dataset)
-    embedding_weights = train_bert(x, vocabulary, vocabulary_inv, args.dataset)
+    # embedding_weights = train_bert(x, vocabulary, vocabulary_inv, args.dataset)
+    embedding_weights = train_use(vocabulary, args.dataset)
+  
     embedding_mat = np.array(
         [np.array(embedding_weights[word]) for word in vocabulary_inv])
 
