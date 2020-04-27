@@ -225,15 +225,15 @@ class WSTC(object):
         # begin pretraining
         t0 = time()
         print('\nPretraining...')
-        self.classifier.fit(x, pretrain_labels, batch_size=batch_size,
-                            epochs=epochs)
+        # self.classifier.fit(x, pretrain_labels, batch_size=batch_size,
+        #                     epochs=epochs)
 		
 		# Early stopping
-		#self.classifier.fit(x, pretrain_labels,
-        #                             batch_size=batch_size,
-        #                    validation_split=0.2,
-        #                    epochs=epochs, callbacks=[EarlyStopping(
-        #        monitor='val_loss', restore_best_weights=True)])
+        self.classifier.fit(x, pretrain_labels,
+                            batch_size=batch_size,
+                           validation_split=0.2,
+                           epochs=epochs, callbacks=[EarlyStopping(
+               monitor='val_loss', restore_best_weights=True)])
         print('Pretraining time: {:.2f}s'.format(time() - t0))
         if save_dir is not None:
             if not os.path.exists(save_dir):
@@ -315,9 +315,9 @@ class WSTC(object):
             # train on batch
             idx = index_array[index * batch_size: min((index + 1) * batch_size,
                                                       x.shape[0])]
-
+            
             batch_loss = self.model.train_on_batch(x=x[idx], y=p[idx])
-			print("Training loss", str(batch_loss))
+            # print("Training loss", str(batch_loss))
             index = index + 1 if (index + 1) * batch_size <= x.shape[0] else 0
 
             ite += 1

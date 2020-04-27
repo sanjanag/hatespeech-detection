@@ -9,7 +9,34 @@ from keras.optimizers import SGD, Adam
 from gen import augment, pseudodocs, pseudodocs_tfidf, pseudodocs_counting_based
 from load_data import load_dataset
 from gensim.models import word2vec
+from flair.data import Sentence
+from flair.embeddings import BertEmbeddings
 
+def train_bert(sentence_matrix, vocabulary, vocabulary_inv, dataset_name):
+    model_dir = '../' + dataset_name
+    embed_name = "embedding_bert.npy"
+    embed_file = os.path.join(model_dir, embed_name)
+    if os.path.exists(embed_file):
+        embedding_weights = np.load(embed_file, allow_pickle='TRUE').item()
+        return embedding_weights
+    all_embeddings = {}
+    sentences = [" ".join([vocabulary_inv[w] for w in s]) for s in sentence_matrix]
+    model = BertEmbeddings('bert-base-uncased', pooling_operation="mean")
+    
+    for sentence in sentences:
+        sent = Sentence(sentence, use_tokenizer=True)
+        model.embed(sent)
+        for token_ind, token in enumerate(sent):
+            word = token.text
+            embedding = token.embedding.cpu().numpy()
+            all_embeddings[word] = embedding
+
+    embedding_weights = {
+        vocabulary[word]: vector
+        for word, vector in all_embeddings.items()}
+
+    np.save(embed_file, embedding_weights) 
+    return embedding_weights
 
 def train_word2vec(sentence_matrix, vocabulary_inv, dataset_name,
                    mode='skipgram',
@@ -121,7 +148,7 @@ if __name__ == "__main__":
     gamma = args.gamma
     delta = args.delta
 
-    word_embedding_dim = 100
+    word_embedding_dim = 3072#100
 
     if args.model == 'cnn':
 
@@ -139,8 +166,8 @@ if __name__ == "__main__":
 
         elif args.dataset == 'hatespeech':
             update_interval = 10
-            pretrain_epochs = 10
-            self_lr = 1e-3
+            pretrain_epochs = 20
+            self_lr = 1e-4
             max_sequence_length = 114
 
         decay = 1e-5
@@ -218,7 +245,8 @@ if __name__ == "__main__":
         sequence_length = [doc_len, sent_len]
 
     print("\n### Input preparation ###")
-    embedding_weights = train_word2vec(x, vocabulary_inv, args.dataset)
+    # embedding_weights = train_word2vec(x, vocabulary_inv, args.dataset)
+    embedding_weights = train_bert(x, vocabulary, vocabulary_inv, args.dataset)
     embedding_mat = np.array(
         [np.array(embedding_weights[word]) for word in vocabulary_inv])
 
@@ -234,32 +262,32 @@ if __name__ == "__main__":
             "generation ###")
 
         # vMF distribution fitting based
-        # word_sup_array = np.array(
-        #     [np.array([vocabulary[word] for word in word_class_list]) for
-        #      word_class_list in word_sup_list])
+        word_sup_array = np.array(
+            [np.array([vocabulary[word] for word in word_class_list]) for
+             word_class_list in word_sup_list])
 
-        # total_counts = sum(word_counts[ele] for ele in word_counts)
-        # total_counts -= word_counts[vocabulary_inv_list[0]]
-        # background_array = np.zeros(vocab_sz)
-        # for i in range(1, vocab_sz):
-        #     background_array[i] = word_counts[vocabulary_inv[i]] / total_counts
+        total_counts = sum(word_counts[ele] for ele in word_counts)
+        total_counts -= word_counts[vocabulary_inv_list[0]]
+        background_array = np.zeros(vocab_sz)
+        for i in range(1, vocab_sz):
+            background_array[i] = word_counts[vocabulary_inv[i]] / total_counts
         
-        # seed_docs, seed_label = pseudodocs(word_sup_array, gamma,
-        #                                    background_array,
-        #                                    sequence_length, len_avg, len_std,
-        #                                    beta, alpha,
-        #                                    vocabulary_inv, embedding_mat,
-        #                                    args.model,
-        #                                    './results/{}/{}/phase1/'.format(
-        #                                        args.dataset, args.model))
+        seed_docs, seed_label = pseudodocs(word_sup_array, gamma,
+                                           background_array,
+                                           sequence_length, len_avg, len_std,
+                                           beta, alpha,
+                                           vocabulary_inv, embedding_mat,
+                                           args.model,
+                                           './results/{}/{}/phase1/'.format(
+                                               args.dataset, args.model))
 
         # tf-idf based 
         # seed_docs, seed_label = pseudodocs_tfidf(x, word_sup_list, beta,
         #                                    vocabulary_inv)
 
         # counting based
-        seed_docs, seed_label = pseudodocs_counting_based(x, word_sup_list, beta,
-                                           vocabulary_inv) 
+        # seed_docs, seed_label = pseudodocs_counting_based(x, word_sup_list, beta,
+        #                                    vocabulary_inv) 
 
 
         if args.sup_source == 'docs':
@@ -315,4 +343,4 @@ if __name__ == "__main__":
                                                                   f1_micro))
 
     print("\n### Generating outputs ###")
-    write_output('../' + args.dataset, y_pred, perm)
+    # write_output('../' + args.dataset, y_pred, perm)
