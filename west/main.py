@@ -97,7 +97,7 @@ if __name__ == "__main__":
     # pre-training epochs: None (default)
     parser.add_argument('--pretrain_epochs', default=None, type=int)
     # self-training update interval: None (default)
-    parser.add_argument('--update_interval', default=None, type=int)
+    parser.add_argument('--update_interval', default=10, type=int)
 
     ### Hyperparameters settings ###
     # background word distribution weight (alpha): 0.2 (default)
@@ -162,14 +162,12 @@ if __name__ == "__main__":
             doc_len = 40
 
         elif args.dataset == 'hatespeech':
-            update_interval = 50
-            pretrain_epochs = 50
+            update_interval = 10
+            pretrain_epochs = 100
             self_lr = 1e-3
-            sent_len = 50
-            doc_len = 10
 
         decay = 1e-5
-        max_sequence_length = [doc_len, sent_len]
+        max_sequence_length = 114
 
     if args.update_interval is not None:
         update_interval = args.update_interval
@@ -202,19 +200,12 @@ if __name__ == "__main__":
     vocab_sz = len(vocabulary_inv)
     n_classes = len(word_sup_list)
 
-    if args.model == 'cnn':
-        if x.shape[1] < max_sequence_length:
-            max_sequence_length = x.shape[1]
-        x = x[:, :max_sequence_length]
-        sequence_length = max_sequence_length
 
-    elif args.model == 'rnn':
-        if x.shape[1] < doc_len:
-            doc_len = x.shape[1]
-        if x.shape[2] < sent_len:
-            sent_len = x.shape[2]
-        x = x[:, :doc_len, :sent_len]
-        sequence_length = [doc_len, sent_len]
+    if x.shape[1] < max_sequence_length:
+        max_sequence_length = x.shape[1]
+    x = x[:, :max_sequence_length]
+    sequence_length = max_sequence_length
+
 
     print("\n### Input preparation ###")
     embedding_weights = train_word2vec(x, vocabulary_inv, args.dataset)
@@ -259,7 +250,7 @@ if __name__ == "__main__":
                 num_real_doc = len(sup_idx.flatten())
             real_seed_docs, real_seed_label = augment(x, sup_idx, num_real_doc)
             seed_docs = np.concatenate((seed_docs, real_seed_docs), axis=0)
-            seed_label = np.concatenate((seed_label, real_seed_label),axis=0)
+            seed_label = np.concatenate((seed_label, real_seed_label), axis=0)
 
         perm_seed = np.random.permutation(len(seed_label))
         seed_docs = seed_docs[perm_seed]

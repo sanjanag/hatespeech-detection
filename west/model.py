@@ -147,10 +147,10 @@ class AttentionWithContext(Layer):
             a *= K.cast(mask, K.floatx())
 
         a /= K.cast(K.sum(a, axis=1, keepdims=True) + K.epsilon(), K.floatx())
-
         a = K.expand_dims(a)
         weighted_input = x * a
         return K.sum(weighted_input, axis=1)
+
 
     def compute_output_shape(self, input_shape):
         return input_shape[0], input_shape[-1]
@@ -159,25 +159,17 @@ class AttentionWithContext(Layer):
 def HierAttLayer(input_shape, n_classes, word_trainable=False, vocab_sz=None,
                  embedding_matrix=None, word_embedding_dim=100, gru_dim=100,
                  fc_dim=100):
-    sentence_input = Input(shape=(input_shape[2],), dtype='int32')
+    sentence_input = Input(shape=(input_shape[1],), dtype='int32')
     embedded_sequences = Embedding(vocab_sz,
                                    word_embedding_dim,
-                                   input_length=input_shape[2],
+                                   input_length=input_shape[1],
                                    weights=[embedding_matrix],
                                    trainable=word_trainable)(sentence_input)
     l_lstm = GRU(gru_dim, return_sequences=True)(embedded_sequences)
     l_dense = TimeDistributed(Dense(fc_dim))(l_lstm)
     l_att = AttentionWithContext()(l_dense)
-    sentEncoder = Model(sentence_input, l_att)
-
-    x = Input(shape=(input_shape[1], input_shape[2]), dtype='int32')
-    review_encoder = TimeDistributed(sentEncoder)(x)
-    l_lstm_sent = GRU(gru_dim, return_sequences=True)(review_encoder)
-    l_dense_sent = TimeDistributed(Dense(fc_dim))(l_lstm_sent)
-    l_att_sent = AttentionWithContext()(l_dense_sent)
-    y = Dense(n_classes, activation='softmax')(l_att_sent)
-
-    return Model(inputs=x, outputs=y, name='classifier')
+    y = Dense(n_classes, activation='softmax')(l_att)
+    return Model(inputs=sentence_input, outputs=y, name='classifier')
 
 
 class WSTC(object):
@@ -212,6 +204,7 @@ class WSTC(object):
                                            word_embedding_dim=word_embedding_dim)
 
         self.model = self.classifier
+        self.classifier_name = model
         self.sup_list = {}
 
     def pretrain(self, x, pretrain_labels, sup_idx=None, optimizer='adam',
@@ -229,20 +222,30 @@ class WSTC(object):
         # begin pretraining
         t0 = time()
         print('\nPretraining...')
-
-        history = self.classifier.fit(x, pretrain_labels,
-                                      batch_size=batch_size,
-                                      validation_split=0.2,
-                                      epochs=epochs, callbacks=[EarlyStopping(
-                monitor='val_loss', restore_best_weights=True)])
+        if  self.classifier_name == 'cnn':
+            history = self.classifier.fit(x, pretrain_labels,
+                                          batch_size=batch_size,
+                                          validation_split=0.2,
+                                          epochs=epochs, callbacks=[EarlyStopping(
+                    monitor='val_loss', restore_best_weights=True)])
+        else:
+            history = self.classifier.fit(x, pretrain_labels,
+                                          batch_size=batch_size,
+                                          validation_split=0.2,
+                                          epochs=epochs,
+                                          callbacks=[EarlyStopping(monitor='val_loss', restore_best_weights=True,patience=5)])
         print(history.history.keys())
         print('Pretraining time: {:.2f}s'.format(time() - t0))
+
         if save_dir is not None:
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
-            self.classifier.save_weights(save_dir + '/pretrained.h5')
-            print(
-                'Pretrained model saved to {}/pretrained.h5'.format(save_dir))
+
+            model_json = self.classifier.to_json()
+            with open(save_dir + "/model.json", "w") as json_file:
+                json_file.write(model_json)
+            self.classifier.save_weights(save_dir + "/model.h5")
+            print('Pretrained model saved to {}/model.h5'.format(save_dir))
         self.pretrained = True
 
     def load_weights(self, weights):

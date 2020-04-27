@@ -113,14 +113,11 @@ def build_input_data_cnn(sentences, vocabulary):
     return x
 
 
-def build_input_data_rnn(data, vocabulary, max_doc_len, max_sent_len):
-    x = np.zeros((len(data), max_doc_len, max_sent_len), dtype='int32')
+def build_input_data_rnn(data, vocabulary, max_doc_len):
+    x = np.zeros((len(data), max_doc_len), dtype='int32')
     for i, doc in enumerate(data):
-        for j, sent in enumerate(doc):
-            k = 0
-            for word in sent:
-                x[i, j, k] = vocabulary[word]
-                k += 1
+        for j, word in enumerate(doc):
+            x[i, j] = vocabulary[word]
     return x
 
 
@@ -297,55 +294,30 @@ def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
     np.random.seed(1234)
     perm = np.random.permutation(sz)
 
-    data = preprocess_doc(data)
-    data_copy = [s.split(" ") for s in data]
-    docs_padded = pad_sequences(data_copy)
-    word_counts, vocabulary, vocabulary_inv = build_vocab(docs_padded)
-
-    data = [tokenize.sent_tokenize(doc) for doc in data]
-    flat_data = [sent for doc in data for sent in doc]
-
-    tmp_list = [len(sent.split(" ")) for sent in flat_data]
-    max_sent_len = max(tmp_list)
-    avg_sent_len = np.average(tmp_list)
-    std_sent_len = np.std(tmp_list)
-
-    print("\n### Dataset statistics: ###")
-    print('Sentence max length: {} (words)'.format(max_sent_len))
-    print('Sentence average length: {} (words)'.format(avg_sent_len))
-
-    if truncate_len is None:
-        truncate_sent_len = min(int(avg_sent_len + 3 * std_sent_len),
-                                max_sent_len)
-    else:
-        truncate_sent_len = truncate_len[1]
-    print("Defined maximum sentence length: {} (words)".format(
-        truncate_sent_len))
-    print('Fraction of truncated sentences: {}'.format(
-        sum(tmp > truncate_sent_len for tmp in tmp_list) / len(tmp_list)))
+    data = preprocess_doc(data, True)
+    data = [s.split(" ") for s in data]
 
     tmp_list = [len(doc) for doc in data]
-    max_doc_len = max(tmp_list)
-    avg_doc_len = np.average(tmp_list)
-    std_doc_len = np.std(tmp_list)
+    len_max = max(tmp_list)
+    len_avg = np.average(tmp_list)
+    len_std = np.std(tmp_list)
 
-    print('Document max length: {} (sentences)'.format(max_doc_len))
-    print('Document average length: {} (sentences)'.format(avg_doc_len))
+    print("\n### Dataset statistics: ###")
+    print('Document max length: {} (words)'.format(len_max))
+    print('Document average length: {} (words)'.format(len_avg))
+    print('Document length std: {} (words)'.format(len_std))
 
     if truncate_len is None:
-        truncate_doc_len = min(int(avg_doc_len + 3 * std_doc_len), max_doc_len)
-    else:
-        truncate_doc_len = truncate_len[0]
-    print("Defined maximum document length: {} (sentences)".format(
-        truncate_doc_len))
+        truncate_len = min(int(len_avg + 3 * len_std), len_max)
+    print("Defined maximum document length: {} (words)".format(truncate_len))
     print('Fraction of truncated documents: {}'.format(
-        sum(tmp > truncate_doc_len for tmp in tmp_list) / len(tmp_list)))
+        sum(tmp > truncate_len for tmp in tmp_list) / len(tmp_list)))
 
-    len_avg = [avg_doc_len, avg_sent_len]
-    len_std = [std_doc_len, std_sent_len]
+    data = pad_sequences(data)
+    word_counts, vocabulary, vocabulary_inv = build_vocab(data)
 
-    data = [[sent.split(" ") for sent in doc] for doc in data]
-    x = build_input_data_rnn(data, vocabulary, max_doc_len, max_sent_len)
+    x = build_input_data_rnn(data, vocabulary, len_max)
+
     x = x[perm]
 
     if with_evaluation:
@@ -371,7 +343,7 @@ def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
         elif dataset_name == 'hatespeech':
             class_type = 'topic'
         keywords, sup_idx = extract_keywords(data_path, vocabulary, class_type,
-                                             num_keywords, data_copy, perm)
+                                             num_keywords, data, perm)
         return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, \
                len_std, keywords, sup_idx, perm
 
