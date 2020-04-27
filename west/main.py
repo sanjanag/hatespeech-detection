@@ -141,7 +141,7 @@ if __name__ == "__main__":
             update_interval = 10
             pretrain_epochs = 20
             self_lr = 1e-4
-            max_sequence_length = 114
+            max_sequence_length = 44
 
         decay = 1e-5
 
@@ -162,12 +162,12 @@ if __name__ == "__main__":
             doc_len = 40
 
         elif args.dataset == 'hatespeech':
-            update_interval = 10
+            update_interval = 20
             pretrain_epochs = 100
-            self_lr = 1e-3
+            self_lr = 1e-4
 
         decay = 1e-5
-        max_sequence_length = 114
+        max_sequence_length = 44
 
     if args.update_interval is not None:
         update_interval = args.update_interval
