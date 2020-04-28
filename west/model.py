@@ -289,11 +289,7 @@ class WSTC(object):
                 if y is not None:
                     f1_macro, f1_micro = np.round(f1(y, y_pred), 5)
                     report = classification_report(y, y_pred, output_dict=True)
-                    if self.classifier_name == 'rnn':
-                        if ite % 50 == 0:
-                            print(classification_report(y, y_pred))
-                    else:
-                        print(classification_report(y, y_pred))
+                    print(classification_report(y, y_pred))
                     logdict = dict(iter=ite,
                                    acc=round(report['accuracy'], 5),
                                    f1_macro=round(
