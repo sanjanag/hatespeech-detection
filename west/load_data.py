@@ -10,6 +10,80 @@ from nltk import tokenize
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 
+def extract_tfidf_keywords(data_path, vocab, class_type, num_keywords, data,
+                        perm):
+    sup_data = []
+    sup_idx = []
+    sup_label = []
+    file_name = 'doc_id.txt'
+    infile = open(join(data_path, file_name), mode='r', encoding='utf-8')
+    text = infile.readlines()
+    for i, line in enumerate(text):
+        line = line.split('\n')[0]
+        class_id, doc_ids = line.split(':')
+        assert int(class_id) == i
+        seed_idx = doc_ids.split(',')
+        seed_idx = [int(idx) for idx in seed_idx]
+        sup_idx.append(seed_idx)
+        for idx in seed_idx:
+            sup_data.append(" ".join(data[idx]))
+            sup_label.append(i)
+
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    import nltk
+
+    tfidf = TfidfVectorizer(norm='l2', sublinear_tf=True, max_df=0.2,
+                            stop_words='english')
+    sup_x = tfidf.fit_transform(sup_data)
+    sup_x = np.asarray(sup_x.todense())
+
+    vocab_dict = tfidf.vocabulary_
+    vocab_inv_dict = {v: k for k, v in vocab_dict.items()}
+
+    print("\n### Supervision type: Labeled documents ###")
+    print("Extracted keywords for each class: ")
+    keywords = []
+    cnt = 0
+    for i in range(len(sup_idx)):
+        class_vec = np.average(sup_x[cnt:cnt + len(sup_idx[i])], axis=0)
+        cnt += len(sup_idx[i])
+        sort_idx = np.argsort(class_vec)[::-1]
+        keyword = []
+        if class_type == 'topic':
+            j = 0
+            k = 0
+            while j < num_keywords:
+                w = vocab_inv_dict[sort_idx[k]]
+                if w in vocab:
+                    keyword.append(vocab_inv_dict[sort_idx[k]])
+                    j += 1
+                k += 1
+        elif class_type == 'sentiment':
+            j = 0
+            k = 0
+            while j < num_keywords:
+                w = vocab_inv_dict[sort_idx[k]]
+                w, t = nltk.pos_tag([w])[0]
+                if t.startswith("J") and w in vocab:
+                    keyword.append(w)
+                    j += 1
+                k += 1
+        print("Class {}:".format(i))
+        print(keyword)
+        keywords.append(keyword)
+
+    new_sup_idx = []
+    m = {v: k for k, v in enumerate(perm)}
+    for seed_idx in sup_idx:
+        new_seed_idx = []
+        for ele in seed_idx:
+            new_seed_idx.append(m[ele])
+        new_sup_idx.append(new_seed_idx)
+    new_sup_idx = np.asarray(new_sup_idx)
+
+    return keywords, new_sup_idx
+
+
 def read_file(data_dir, with_evaluation):
     data = []
     target = []
@@ -222,7 +296,7 @@ def load_keywords(data_path, sup_source):
 
 
 def load_cnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
-             truncate_len=None):
+             truncate_len=None, keyword_method='tfidf'):
     data_path = '../' + dataset_name
     data, y = read_file(data_path, with_evaluation)
 
@@ -280,14 +354,21 @@ def load_cnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
             class_type = 'sentiment'
         elif dataset_name == 'hatespeech':
             class_type = 'topic'
-        keywords, sup_idx = extract_keywords(data_path, vocabulary, class_type,
+        if keyword_method == 'tfidf':
+            keywords, sup_idx = extract_tfidf_keywords(data_path, vocabulary, class_type,
                                              num_keywords, data, perm)
+        else:
+            keywords, sup_idx = extract_keywords(data_path,
+                                                 vocabulary,
+                                                       class_type,
+                                                       num_keywords, data,
+                                                       perm)
         return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, \
                len_std, keywords, sup_idx, perm
 
 
 def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
-             truncate_len=None):
+             truncate_len=None, keyword_method='tfidf'):
     data_path = '../' + dataset_name
     data, y = read_file(data_path, with_evaluation)
 
@@ -343,19 +424,27 @@ def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
             class_type = 'sentiment'
         elif dataset_name == 'hatespeech':
             class_type = 'topic'
-        keywords, sup_idx = extract_keywords(data_path, vocabulary, class_type,
-                                             num_keywords, data, perm)
+        if keyword_method == 'tfidf':
+            keywords, sup_idx = extract_tfidf_keywords(data_path, vocabulary,
+                                                       class_type,
+                                                       num_keywords, data,
+                                                       perm)
+        else:
+            keywords, sup_idx = extract_keywords(data_path, vocabulary,
+                                                 class_type,
+                                                 num_keywords, data,
+                                                 perm)
         return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, \
                len_std, keywords, sup_idx, perm
 
 
 def load_dataset(dataset_name, sup_source, model='cnn', with_evaluation=True,
-                 truncate_len=None):
+                 truncate_len=None, keyword_method='tfidf'):
     if model == 'cnn':
         return load_cnn(dataset_name, sup_source,
                         with_evaluation=with_evaluation,
-                        truncate_len=truncate_len)
+                        truncate_len=truncate_len, keyword_method=keyword_method)
     elif model == 'rnn':
         return load_rnn(dataset_name, sup_source,
                         with_evaluation=with_evaluation,
-                        truncate_len=truncate_len)
+                        truncate_len=truncate_len, keyword_method=keyword_method)

@@ -113,6 +113,9 @@ if __name__ == "__main__":
     # trained model directory: None (default)
     parser.add_argument('--trained_weights', default=None)
 
+    parser.add_argument('--keyword_method', default='tfidf', choices=[
+        'tfidf', 'ranking'])
+
     args = parser.parse_args()
     print(args)
 
@@ -193,7 +196,8 @@ if __name__ == "__main__":
             load_dataset(args.dataset, model=args.model,
                          sup_source=args.sup_source,
                          with_evaluation=with_evaluation,
-                         truncate_len=max_sequence_length)
+                         truncate_len=max_sequence_length,
+                         keyword_method=args.keyword_method)
 
     np.random.seed(1234)
     vocabulary_inv = {key: value for key, value in enumerate(vocabulary_inv_list)}
@@ -239,9 +243,9 @@ if __name__ == "__main__":
                                            args.model,
                                            './results/{}/{}/phase1/'.format(
                                                args.dataset, args.model))
-        import  pickle
-        with open('../hatespeech/pseudodocs.pkl', 'wb') as f:
-            pickle.dump([seed_docs, seed_label, vocabulary_inv], f)
+        # import  pickle
+        # with open('../hatespeech/pseudodocs.pkl', 'wb') as f:
+        #     pickle.dump([seed_docs, seed_label, vocabulary_inv], f)
 
         if args.sup_source == 'docs':
             if args.model == 'cnn':
