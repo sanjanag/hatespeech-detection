@@ -206,41 +206,53 @@ class WSTC(object):
                                            vocab_sz=vocab_sz,
                                            embedding_matrix=embedding_matrix,
                                            word_embedding_dim=word_embedding_dim)
-
+        
         self.model = self.classifier
+        self.classifier_name = model
         self.sup_list = {}
 
     def pretrain(self, x, pretrain_labels, sup_idx=None, optimizer='adam',
                  loss='kld', epochs=200, batch_size=256, save_dir=None):
-
+        
         self.classifier.compile(optimizer=optimizer, loss=loss)
         print("\nNeural model summary: ")
         self.model.summary()
-
+        
         if sup_idx is not None:
             for i, seed_idx in enumerate(sup_idx):
                 for idx in seed_idx:
                     self.sup_list[idx] = i
-
+        
         # begin pretraining
         t0 = time()
         print('\nPretraining...')
-        # self.classifier.fit(x, pretrain_labels, batch_size=batch_size,
-        #                     epochs=epochs)
-		
-		# Early stopping
-        self.classifier.fit(x, pretrain_labels,
-                            batch_size=batch_size,
-                           validation_split=0.2,
-                           epochs=epochs, callbacks=[EarlyStopping(
-               monitor='val_loss', restore_best_weights=True)])
+        if self.classifier_name == 'cnn':
+            history = self.classifier.fit(x, pretrain_labels,
+                                          batch_size=batch_size,
+                                          validation_split=0.2,
+                                          epochs=epochs,
+                                          callbacks=[EarlyStopping(
+                                              monitor='val_loss',
+                                              restore_best_weights=True)])
+        else:
+            history = self.classifier.fit(x, pretrain_labels,
+                                          batch_size=batch_size,
+                                          validation_split=0.2,
+                                          epochs=epochs,
+                                          callbacks=[
+                                              EarlyStopping(monitor='val_loss',
+                                                            restore_best_weights=True,
+                                                            patience=5)])
+        print(history.history.keys())
         print('Pretraining time: {:.2f}s'.format(time() - t0))
         if save_dir is not None:
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
-            self.classifier.save_weights(save_dir + '/pretrained.h5')
-            print(
-                'Pretrained model saved to {}/pretrained.h5'.format(save_dir))
+            model_json = self.classifier.to_json()
+            with open(save_dir + "/model.json", "w") as json_file:
+                json_file.write(model_json)
+            self.classifier.save_weights(save_dir + "/model.h5")
+            print('Pretrained model saved to {}/model.h5'.format(save_dir))
         self.pretrained = True
 
     def load_weights(self, weights):
@@ -277,7 +289,14 @@ class WSTC(object):
         logfile = open(
             save_dir + '/self_training_log_{}.csv'.format(save_suffix), 'w')
         logwriter = csv.DictWriter(logfile,
-                                   fieldnames=['iter', 'f1_macro', 'f1_micro'])
+                                   fieldnames=['iter',
+                                               'acc',
+                                               'f1_macro',
+                                               'f1_micro',
+                                               'f1_normal',
+                                               'f1_spam',
+                                               'f1_abusive',
+                                               'f1_hateful'])
         logwriter.writeheader()
 
         index = 0
@@ -291,9 +310,19 @@ class WSTC(object):
                 print('\nIter {}: '.format(ite), end='')
                 if y is not None:
                     f1_macro, f1_micro = np.round(f1(y, y_pred), 5)
-                    print(classification_report(y, y_pred))
-                    logdict = dict(iter=ite, f1_macro=f1_macro,
-                                   f1_micro=f1_micro)
+                    report = classification_report(y, y_pred, output_dict = True)
+                    logdict = dict(iter=ite,
+                                   acc=round(report['accuracy'], 5),
+                                   f1_macro=round(
+                                       report['macro avg']['f1-score'], 5),
+                                   f1_micro=round(report['weighted avg'][
+                                                      'f1-score'], 5),
+                                   f1_normal=round(report['0']['f1-score'], 5),
+                                   f1_spam=round(report['1']['f1-score'], 5),
+                                   f1_abusive=round(report['2']['f1-score'],
+                                                    5),
+                                   f1_hateful=round(report['3']['f1-score'],
+                                                    5))
                     logwriter.writerow(logdict)
                     print('f1_macro = {}, f1_micro = {}'.format(f1_macro,
                                                                 f1_micro))
