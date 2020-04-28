@@ -17,27 +17,7 @@ from keras import regularizers, constraints
 from keras.initializers import RandomUniform
 from sklearn.metrics import f1_score
 
-from keras.callbacks import Callback, EarlyStopping
-
-
-class TerminateOnBaseline(Callback):
-    """Callback that terminates training when either acc or val_acc reaches
-    a specified baseline
-    """
-
-    def __init__(self, monitor='val_loss', baseline=0.1):
-        super(TerminateOnBaseline, self).__init__()
-        self.monitor = monitor
-        self.baseline = baseline
-
-    def on_epoch_end(self, epoch, logs=None):
-        logs = logs or {}
-        acc = logs.get(self.monitor)
-        if acc is not None:
-            if acc < self.baseline:
-                print('Epoch %d: Reached baseline, terminating training' % (
-                    epoch))
-                self.model.stop_training = True
+from keras.callbacks import EarlyStopping
 
 
 def f1(y_true, y_pred):
@@ -151,7 +131,6 @@ class AttentionWithContext(Layer):
         weighted_input = x * a
         return K.sum(weighted_input, axis=1)
 
-
     def compute_output_shape(self, input_shape):
         return input_shape[0], input_shape[-1]
 
@@ -222,18 +201,23 @@ class WSTC(object):
         # begin pretraining
         t0 = time()
         print('\nPretraining...')
-        if  self.classifier_name == 'cnn':
+        if self.classifier_name == 'cnn':
             history = self.classifier.fit(x, pretrain_labels,
                                           batch_size=batch_size,
                                           validation_split=0.2,
-                                          epochs=epochs, callbacks=[EarlyStopping(
-                    monitor='val_loss', restore_best_weights=True)])
+                                          epochs=epochs,
+                                          callbacks=[EarlyStopping(
+                                              monitor='val_loss',
+                                              restore_best_weights=True)])
         else:
             history = self.classifier.fit(x, pretrain_labels,
                                           batch_size=batch_size,
                                           validation_split=0.2,
                                           epochs=epochs,
-                                          callbacks=[EarlyStopping(monitor='val_loss', restore_best_weights=True,patience=5)])
+                                          callbacks=[
+                                              EarlyStopping(monitor='val_loss',
+                                                            restore_best_weights=True,
+                                                            patience=5)])
         print(history.history.keys())
         print('Pretraining time: {:.2f}s'.format(time() - t0))
 
@@ -305,7 +289,11 @@ class WSTC(object):
                 if y is not None:
                     f1_macro, f1_micro = np.round(f1(y, y_pred), 5)
                     report = classification_report(y, y_pred, output_dict=True)
-                    print(classification_report(y, y_pred))
+                    if self.classifier_name == 'rnn':
+                        if ite % 50 == 0:
+                            print(classification_report(y, y_pred))
+                    else:
+                        print(classification_report(y, y_pred))
                     logdict = dict(iter=ite,
                                    acc=round(report['accuracy'], 5),
                                    f1_macro=round(
@@ -323,7 +311,7 @@ class WSTC(object):
                                                                 f1_micro))
 
                 # check stop criterion
-                delta_label = np.sum(y_pred != y_pred_last).astype(np.float)\
+                delta_label = np.sum(y_pred != y_pred_last).astype(np.float) \
                               / \
                               y_pred.shape[0]
                 print('Number of documents with label changes: {}'.format(
