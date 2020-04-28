@@ -9,9 +9,9 @@ from keras.optimizers import SGD, Adam
 from gen import augment, pseudodocs, pseudodocs_tfidf, pseudodocs_counting_based
 from load_data import load_dataset
 from gensim.models import word2vec
-from use.model import get_use_embeddings
-from flair.data import Sentence
-from flair.embeddings import BertEmbeddings
+# from use.model import get_use_embeddings
+# from flair.data import Sentence
+# from flair.embeddings import BertEmbeddings
 import tensorflow_hub as hub
 import tensorflow as tf
 
@@ -165,7 +165,7 @@ if __name__ == "__main__":
     gamma = args.gamma
     delta = args.delta
 
-    word_embedding_dim = 512#33072#100
+    word_embedding_dim = 100 #33072#100
 
     if args.model == 'cnn':
 
@@ -185,12 +185,12 @@ if __name__ == "__main__":
             update_interval = 10
             pretrain_epochs = 20
             self_lr = 1e-4
-            max_sequence_length = 114
+            max_sequence_length = 44
 
         decay = 1e-5
 
     elif args.model == 'rnn':
-
+        
         if args.dataset == 'agnews':
             update_interval = 50
             pretrain_epochs = 100
@@ -206,14 +206,12 @@ if __name__ == "__main__":
             doc_len = 40
 
         elif args.dataset == 'hatespeech':
-            update_interval = 50
-            pretrain_epochs = 50
-            self_lr = 1e-3
-            sent_len = 50
-            doc_len = 10
+            update_interval = 20
+            pretrain_epochs = 100
+            self_lr = 1e-4
 
         decay = 1e-5
-        max_sequence_length = [doc_len, sent_len]
+        max_sequence_length = 44
 
     if args.update_interval is not None:
         update_interval = args.update_interval
@@ -262,9 +260,9 @@ if __name__ == "__main__":
         sequence_length = [doc_len, sent_len]
 
     print("\n### Input preparation ###")
-    # embedding_weights = train_word2vec(x, vocabulary_inv, args.dataset)
+    embedding_weights = train_word2vec(x, vocabulary_inv, args.dataset)
     # embedding_weights = train_bert(x, vocabulary, vocabulary_inv, args.dataset)
-    embedding_weights = train_use(vocabulary, args.dataset)
+    # embedding_weights = train_use(vocabulary, args.dataset)
   
     embedding_mat = np.array(
         [np.array(embedding_weights[word]) for word in vocabulary_inv])
@@ -362,4 +360,4 @@ if __name__ == "__main__":
                                                                   f1_micro))
 
     print("\n### Generating outputs ###")
-    # write_output('../' + args.dataset, y_pred, perm)
+    write_output('../' + args.dataset, y_pred, perm)

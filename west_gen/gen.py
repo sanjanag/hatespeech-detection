@@ -187,13 +187,13 @@ def pseudodocs_tfidf(x, word_sup_array, num_doc, vocabulary_inv):
     print(word_sup_array)
     keywords = {}
     for i, word_list in enumerate(word_sup_array):
-        keywords[i] = [stem(word) for word in word_list]
+        keywords[i] = [word for word in word_list]
 
     # get count features
     count_vectorizer = CountVectorizer(input='content', encoding='ascii',
                                     decode_error='ignore',
                                     strip_accents='ascii',
-                                    stop_words='english', min_df=2)
+                                    min_df=2)
     count_weights = count_vectorizer.fit_transform(data)
     vocabulary = count_vectorizer.vocabulary_
 
@@ -273,13 +273,13 @@ def pseudodocs_counting_based(x, word_sup_array, num_doc, vocabulary_inv):
     print(word_sup_array)
     keywords = {}
     for i, word_list in enumerate(word_sup_array):
-        keywords[i] = [stem(word) for word in word_list]
+        keywords[i] = [word for word in word_list]
 
     # get count features
     count_vectorizer = CountVectorizer(input='content', encoding='ascii',
                                     decode_error='ignore',
                                     strip_accents='ascii',
-                                    stop_words='english', min_df=2)
+                                    min_df=2)
     count_weights = count_vectorizer.fit_transform(data)
     vocabulary = count_vectorizer.vocabulary_
 
