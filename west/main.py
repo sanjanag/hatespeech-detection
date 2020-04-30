@@ -243,9 +243,9 @@ if __name__ == "__main__":
                                            args.model,
                                            './results/{}/{}/phase1/'.format(
                                                args.dataset, args.model))
-        # import  pickle
-        # with open('../hatespeech/pseudodocs.pkl', 'wb') as f:
-        #     pickle.dump([seed_docs, seed_label, vocabulary_inv], f)
+        import  pickle
+        with open('../analysis/pseudodocs.pkl', 'wb') as f:
+            pickle.dump([seed_docs, seed_label, vocabulary_inv], f)
 
         if args.sup_source == 'docs':
             if args.model == 'cnn':

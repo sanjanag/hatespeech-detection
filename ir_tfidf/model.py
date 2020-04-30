@@ -21,14 +21,6 @@ else:
     with open('processed.pkl', 'wb') as f:
         pickle.dump((data, y), f)
 
-# Define keywords
-# Define keywords
-# keywords = {
-#     0: ['time', 'love', 'good', 'great', 'happy'],
-#     1: ['new', 'free', 'video', 'check', 'win'],
-#     2: ['fucked', 'bitch', 'pussy', 'ass', 'ugly'],
-#     3: ['hate', 'racist', 'muslims', 'retarded', 'isis']
-# }
 
 keywords = {
     0: ['love', 'people', 'time', 'day', 'life'],
