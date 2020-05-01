@@ -9,7 +9,7 @@ from keras.optimizers import SGD, Adam
 from gen import augment, pseudodocs, pseudodocs_tfidf, pseudodocs_counting_based
 from load_data import load_dataset
 from gensim.models import word2vec
-# from use.model import get_use_embeddings
+from use.model import get_use_embeddings
 # from flair.data import Sentence
 # from flair.embeddings import BertEmbeddings
 import tensorflow_hub as hub
