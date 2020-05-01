@@ -9,7 +9,69 @@ from keras.optimizers import SGD, Adam
 from gen import augment, pseudodocs, tfidf_pseudolabels, counting_pseudolabels
 from load_data import load_dataset
 from gensim.models import word2vec
+import pickle
+from nltk.stem.porter import *
+from utils import read_file, preprocess, stem
+import tensorflow as tf
+import tensorflow_hub as hub 
 
+def train_use(vocabulary, dataset_name):
+    vector_size = 512
+    model_dir = '../' + dataset_name
+    embed_name = "use_embeddings.npy"
+    embed_file = os.path.join(model_dir, embed_name)
+    if os.path.exists(embed_file):
+        all_embeddings = np.load(embed_file, allow_pickle='TRUE').item()    
+    else:
+        all_embeddings = get_use_embeddings(dataset_name)
+    
+    embedding_weights = {
+        i : all_embeddings[word] if word in all_embeddings else
+        np.random.uniform(-0.25, 0.25, vector_size)
+        for i, word in enumerate(vocabulary.keys())}
+    
+    return embedding_weights
+
+def get_use_embeddings(dataset_name):
+    processed_datafile =  '../' + dataset_name + '/processed.pkl'
+    if os.path.exists(processed_datafile):
+        with open(processed_datafile, 'rb') as f:
+            data, y = pickle.load(f)
+    else:
+        data_folder = '../' + dataset_name
+        data, y = read_file(data_folder, True)
+        data = [preprocess(text) for text in data]
+        with open(processed_datafile, 'wb') as f:
+            pickle.dump((data, y), f)
+
+    vocab = ['<PAD/>']
+    vocab_file = '../' + dataset_name + '/vocab.npy'
+    if os.path.exists(vocab_file):
+        vocab = np.load(vocab_file, allow_pickle='TRUE')
+    else:
+        for sentence in data:
+            words = sentence.split()
+            for word in words:
+                if word not in vocab:
+                    vocab.append(word)
+        np.save(vocab_file, vocab)
+
+    def embed(input):
+        return model(input)
+
+    embed_file = '../' + dataset_name + '/use_embeddings.npy'
+    embeddings = {}
+
+    module_url = "https://tfhub.dev/google/universal-sentence-encoder/4"
+    model = hub.load(module_url)
+
+    message_embeddings = embed(vocab)
+
+    for i, message_embedding in enumerate(np.array(message_embeddings).tolist()):
+        embeddings[vocab[i]] = (message_embedding)
+    
+    np.save(embed_file, embeddings)
+    return embeddings 
 
 def train_word2vec(sentence_matrix, vocabulary_inv, dataset_name,
                    mode='skipgram',
@@ -119,6 +181,9 @@ if __name__ == "__main__":
     parser.add_argument('--pseudo_gen_method', default='doc_gen', choices=[
         'doc_gen', 'count_labelling', 'tfidf_labelling'])
 
+    parser.add_argument('--embeddings', default='word2vec', choices=[
+        'word2vec', 'use'])
+
     args = parser.parse_args()
     print(args)
 
@@ -127,7 +192,10 @@ if __name__ == "__main__":
     gamma = args.gamma
     delta = args.delta
 
-    word_embedding_dim = 100
+    if args.embeddings == "word2vec":
+        word_embedding_dim = 100
+    elif args.embeddings == "use":
+        word_embedding_dim = 512
 
     if args.model == 'cnn':
 
@@ -215,7 +283,12 @@ if __name__ == "__main__":
 
 
     print("\n### Input preparation ###")
-    embedding_weights = train_word2vec(x, vocabulary_inv, args.dataset)
+
+    if args.embeddings == "word2vec":
+        embedding_weights = train_word2vec(x, vocabulary_inv, args.dataset)
+    elif args.embeddings == "use":
+        embedding_weights = train_use(vocabulary, args.dataset)
+    
     embedding_mat = np.array(
         [np.array(embedding_weights[word]) for word in vocabulary_inv])
 
