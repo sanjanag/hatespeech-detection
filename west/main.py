@@ -6,7 +6,7 @@ import os
 # os.environ["CUDA_VISIBLE_DEVICES"]="0"
 from model import WSTC, f1
 from keras.optimizers import SGD, Adam
-from gen import augment, pseudodocs
+from gen import augment, pseudodocs, tfidf_pseudolabels, counting_pseudolabels
 from load_data import load_dataset
 from gensim.models import word2vec
 
@@ -116,6 +116,9 @@ if __name__ == "__main__":
     parser.add_argument('--keyword_method', default='tfidf', choices=[
         'tfidf', 'ranking'])
 
+    parser.add_argument('--pseudo_gen_method', default='doc_gen', choices=[
+        'doc_gen', 'count_labelling', 'tfidf_labelling'])
+
     args = parser.parse_args()
     print(args)
 
@@ -223,26 +226,39 @@ if __name__ == "__main__":
 
     if args.trained_weights is None:
         print(
-            "\n### Phase 1: vMF distribution fitting & pseudo document "
+            "\n### Phase 1: pseudo document/label "
             "generation ###")
 
         word_sup_array = np.array(
             [np.array([vocabulary[word] for word in word_class_list]) for
              word_class_list in word_sup_list])
 
-        total_counts = sum(word_counts[ele] for ele in word_counts)
-        total_counts -= word_counts[vocabulary_inv_list[0]]
-        background_array = np.zeros(vocab_sz)
-        for i in range(1, vocab_sz):
-            background_array[i] = word_counts[vocabulary_inv[i]] / total_counts
-        seed_docs, seed_label = pseudodocs(word_sup_array, gamma,
-                                           background_array,
-                                           sequence_length, len_avg, len_std,
-                                           beta, alpha,
-                                           vocabulary_inv, embedding_mat,
-                                           args.model,
-                                           './results/{}/{}/phase1/'.format(
-                                               args.dataset, args.model))
+        # vMF distribution fitting based
+        if args.pseudo_gen_method == "doc_gen":
+            total_counts = sum(word_counts[ele] for ele in word_counts)
+            total_counts -= word_counts[vocabulary_inv_list[0]]
+            background_array = np.zeros(vocab_sz)
+            for i in range(1, vocab_sz):
+                background_array[i] = word_counts[vocabulary_inv[i]] / total_counts
+            seed_docs, seed_label = pseudodocs(word_sup_array, gamma,
+                                            background_array,
+                                            sequence_length, len_avg, len_std,
+                                            beta, alpha,
+                                            vocabulary_inv, embedding_mat,
+                                            args.model,
+                                            './results/{}/{}/phase1/'.format(
+                                                args.dataset, args.model))
+        
+        # tfidf based pseudo label generation
+        elif args.pseudo_gen_method == "tfidf_labelling":
+            seed_docs, seed_label = tfidf_pseudolabels(x, word_sup_list, beta,
+                                           vocabulary_inv)
+
+        # counting based pseudo label generation
+        elif args.pseudo_gen_method == "count_labelling": 
+            seed_docs, seed_label = counting_pseudolabels(x, word_sup_list, beta,
+                                               vocabulary_inv)
+
         import  pickle
         with open('../analysis/pseudodocs.pkl', 'wb') as f:
             pickle.dump([seed_docs, seed_label, vocabulary_inv], f)

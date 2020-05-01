@@ -2,7 +2,7 @@ import numpy as np
 import os
 np.random.seed(1234)
 from spherecluster import SphericalKMeans, VonMisesFisherMixture, sample_vMF
-
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 
 def seed_expansion(word_sup_array, prob_sup_array, sz, write_path, vocabulary_inv, embedding_mat):
     expanded_seed = []
@@ -169,3 +169,172 @@ def augment(x, sup_idx, total_len):
 
     print("Finished labeled documents augmentation.")
     return new_docs, pretrain_labels
+
+def tfidf_pseudolabels(x, word_sup_array, num_doc, vocabulary_inv):
+    (m,n) = x.shape
+    data = []
+    for i in range(m):
+        doc = []
+        for j in range(n):
+            if x[i][j] == 0:
+                break
+            doc.append(vocabulary_inv[x[i][j]])
+        data.append(" ".join(doc))
+    # data = np.array(data)
+
+    print("Pseudo labels generation...")
+    print(word_sup_array)
+    keywords = {}
+    for i, word_list in enumerate(word_sup_array):
+        keywords[i] = [word for word in word_list]
+
+    # get count features
+    count_vectorizer = CountVectorizer(input='content', encoding='ascii',
+                                    decode_error='ignore',
+                                    strip_accents='ascii',
+                                    min_df=2)
+    count_weights = count_vectorizer.fit_transform(data)
+    vocabulary = count_vectorizer.vocabulary_
+
+    # get tf idf features
+    vectorizer = TfidfVectorizer(input='content', encoding='ascii',
+                                decode_error='ignore', strip_accents='ascii',
+                                stop_words='english', min_df=2,
+                                vocabulary=vocabulary)
+    tfidf_weights = vectorizer.fit_transform(data)
+
+    # get tf idf weights for keywords
+    keyword_indices = {}
+    for class_label, words in keywords.items():
+        keyword_indices[class_label] = [vocabulary[w] for w in words]
+
+    class_weights = []
+    for class_label in range(4):
+        indices = keyword_indices[class_label]
+        tfidf =  np.array(tfidf_weights[:, indices].sum(axis=1)).flatten()
+        weighted_tfidf = np.array(count_weights[:, indices].sum(
+            axis=1)).flatten() * tfidf
+        class_weights.append(weighted_tfidf)
+
+    # assign label based on aggregate
+    class_weights = np.vstack(class_weights).T
+    y_pred = []
+    max_class = np.argmax(class_weights, axis=1)
+    for i in range(len(data)):
+        y_pred.append(max_class[i])
+    
+    class_ids = {}
+    for i in range(4):
+        class_ids[i] = []
+
+    for i in range(len(data)):
+        cur_label = y_pred[i]
+        class_ids[cur_label].append(i)
+
+    doc_ids = []
+    label = np.zeros((4*num_doc, 4))
+
+    for i in range(4):
+        class_total = len(class_ids[i])
+        rand_ids = np.random.choice(class_total, num_doc, replace= False)
+        sel_doc_ids = [class_ids[i][id] for id in rand_ids]
+        doc_ids.extend(sel_doc_ids)
+
+    docs = np.zeros((len(doc_ids), n), dtype=int)
+    for i, doc_id in enumerate(doc_ids):
+        docs[i] = x[doc_id]
+        pred_label = y_pred[doc_id]
+        label[i][pred_label] = 1
+
+    # ###### Label all docs ####
+    # label = np.zeros((m, 4))
+    # for i in range(len(y_pred)):
+    #     cur_pred = y_pred[i]
+    #     label[i][cur_pred] = 1
+    # return x, label
+    # ###########################
+
+    return docs, label
+
+def counting_pseudolabels(x, word_sup_array, num_doc, vocabulary_inv):
+    (m,n) = x.shape
+    data = []
+    for i in range(m):
+        doc = []
+        for j in range(n):
+            if x[i][j] == 0:
+                break
+            doc.append(vocabulary_inv[x[i][j]])
+        data.append(" ".join(doc))
+    # data = np.array(data)
+
+    print("Pseudo labels generation...")
+    print(word_sup_array)
+    keywords = {}
+    for i, word_list in enumerate(word_sup_array):
+        keywords[i] = [word for word in word_list]
+
+    # get count features
+    count_vectorizer = CountVectorizer(input='content', encoding='ascii',
+                                    decode_error='ignore',
+                                    strip_accents='ascii',
+                                    min_df=2)
+    count_weights = count_vectorizer.fit_transform(data)
+    vocabulary = count_vectorizer.vocabulary_
+
+    # get weights for keywords
+    keyword_indices = {}
+    for class_label, words in keywords.items():
+        keyword_indices[class_label] = [vocabulary[w] for w in words]
+
+    class_weights = []
+    for class_label in range(4):
+        indices = keyword_indices[class_label]
+        counts =  np.array(count_weights[:, indices].sum(axis=1)).flatten()
+        class_weights.append(counts)
+    
+    # assign label based on aggregate
+    class_weights = np.vstack(class_weights).T
+
+    # exclude words with zero counts
+    sum_counts = class_weights.sum(axis = 1)
+    excl_ids = sum_counts == 0
+    non_zero_ids = [i for i in range(m) if i not in excl_ids]
+
+    y_pred = []
+    max_class = np.argmax(class_weights, axis=1)
+    for i in range(len(data)):
+        y_pred.append(max_class[i])
+    
+    class_ids = {}
+    for i in range(4):
+        class_ids[i] = []
+
+    for i in non_zero_ids:
+        cur_label = y_pred[i]
+        class_ids[cur_label].append(i)
+
+    doc_ids = []
+    label = np.zeros((4*num_doc, 4))
+
+    for i in range(4):
+        class_total = len(class_ids[i])
+        rand_ids = np.random.choice(class_total, num_doc, replace= False)
+        sel_doc_ids = [class_ids[i][id] for id in rand_ids]
+        doc_ids.extend(sel_doc_ids)
+
+    docs = np.zeros((len(doc_ids), n), dtype=int)
+    for i, doc_id in enumerate(doc_ids):
+        docs[i] = x[doc_id]
+        pred_label = y_pred[doc_id]
+        label[i][pred_label] = 1
+
+    # ###### Label all docs ####
+    # label = np.zeros((m, 4))
+    # for i in range(len(y_pred)):
+    #     cur_pred = y_pred[i]
+    #     label[i][cur_pred] = 1
+    # return x, label
+    # ###########################
+
+    return docs, label
