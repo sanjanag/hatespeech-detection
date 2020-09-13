@@ -7,7 +7,7 @@ import os
 from model import WSTC, f1
 from keras.optimizers import SGD, Adam
 from gen import augment, pseudodocs
-from load_data import load_dataset
+from load_data import load_dataset, load_dataset_v2, get_train_inputs
 from gensim.models import word2vec
 
 
@@ -15,7 +15,7 @@ def train_word2vec(sentence_matrix, vocabulary_inv, dataset_name,
                    mode='skipgram',
                    num_features=100, min_word_count=5, context=5):
     model_dir = '../' + dataset_name
-    model_name = "embedding"
+    model_name = "w2v_embedding"
     model_name = os.path.join(model_dir, model_name)
     if os.path.exists(model_name):
         embedding_model = word2vec.Word2Vec.load(model_name)
@@ -66,6 +66,7 @@ def write_output(write_path, y_pred, perm):
     return
 
 
+
 if __name__ == "__main__":
 
     import argparse
@@ -83,19 +84,19 @@ if __name__ == "__main__":
     # weak supervision selection: label surface names (default),
     # class-related keywords and labeled documents
     parser.add_argument('--sup_source', default='keywords',
-                        choices=['labels', 'keywords', 'docs'])
+                        choices=['keywords', 'docs'])
     # whether ground truth labels are available for evaluation: True (
     # default), False
-    parser.add_argument('--with_evaluation', default='True',
-                        choices=['True', 'False'])
+    parser.add_argument('--with_evaluation', default=True, type=bool)
 
     ### Training settings ###
     # mini-batch size for both pre-training and self-training: 256 (default)
+    parser.add_argument('--word2vec_size', default=100, type=int)
     parser.add_argument('--batch_size', default=256, type=int)
     # maximum self-training iterations: 5000 (default)
     parser.add_argument('--maxiter', default=5e3, type=int)
     # pre-training epochs: None (default)
-    parser.add_argument('--pretrain_epochs', default=None, type=int)
+    parser.add_argument('--pretrain_epochs', default=10, type=int)
     # self-training update interval: None (default)
     parser.add_argument('--update_interval', default=10, type=int)
 
@@ -116,6 +117,8 @@ if __name__ == "__main__":
     parser.add_argument('--keyword_method', default='tfidf', choices=[
         'tfidf', 'ranking'])
 
+
+    # Initialize arguments
     args = parser.parse_args()
     print(args)
 
@@ -124,97 +127,45 @@ if __name__ == "__main__":
     gamma = args.gamma
     delta = args.delta
 
-    word_embedding_dim = 100
+    word_embedding_dim = args.word2vec_size
+    update_interval = args.update_interval
+    pretrain_epochs = args.pretrain_epochs
 
-    if args.model == 'cnn':
+    self_lr = 1e-4
+    decay = 1e-5
+    max_sequence_length = 44
 
-        if args.dataset == 'agnews':
-            update_interval = 50
-            pretrain_epochs = 20
-            self_lr = 1e-3
-            max_sequence_length = 100
+    with_evaluation = args.with_evaluation
 
-        elif args.dataset == 'yelp':
-            update_interval = 50
-            pretrain_epochs = 30
-            self_lr = 1e-4
-            max_sequence_length = 500
+    padded_data, y, word_counts, vocabulary, vocabulary_inv_list, len_max, len_avg, len_std = load_dataset_v2(
+        args.dataset, with_evaluation)
 
-        elif args.dataset == 'hatespeech':
-            update_interval = 10
-            pretrain_epochs = 20
-            self_lr = 1e-4
-            max_sequence_length = 44
-
-        decay = 1e-5
-
-    elif args.model == 'rnn':
-
-        if args.dataset == 'agnews':
-            update_interval = 50
-            pretrain_epochs = 100
-            self_lr = 1e-3
-            sent_len = 45
-            doc_len = 10
-
-        elif args.dataset == 'yelp':
-            update_interval = 100
-            pretrain_epochs = 200
-            self_lr = 1e-4
-            sent_len = 30
-            doc_len = 40
-
-        elif args.dataset == 'hatespeech':
-            update_interval = 20
-            pretrain_epochs = 100
-            self_lr = 1e-4
-
-        decay = 1e-5
-        max_sequence_length = 44
-
-    if args.update_interval is not None:
-        update_interval = args.update_interval
-    if args.pretrain_epochs is not None:
-        pretrain_epochs = args.pretrain_epochs
-
-    if args.with_evaluation == 'True':
-        with_evaluation = True
-    else:
-        with_evaluation = False
-
-    if args.sup_source == 'labels' or args.sup_source == 'keywords':
-        x, y, word_counts, vocabulary, vocabulary_inv_list, len_avg, \
-        len_std, word_sup_list, perm = \
-            load_dataset(args.dataset, model=args.model,
-                         sup_source=args.sup_source,
-                         with_evaluation=with_evaluation,
-                         truncate_len=max_sequence_length)
+    print("\n### Reading supervision words from keywords/docs")
+    if args.sup_source == 'keywords':
+        x, y, word_sup_list, perm = get_train_inputs(padded_data, y, vocabulary,
+                                                     vocabulary_inv_list, 'keywords')
         sup_idx = None
-    elif args.sup_source == 'docs':
-        x, y, word_counts, vocabulary, vocabulary_inv_list, len_avg, \
-        len_std, word_sup_list, sup_idx, perm = \
-            load_dataset(args.dataset, model=args.model,
-                         sup_source=args.sup_source,
-                         with_evaluation=with_evaluation,
-                         truncate_len=max_sequence_length,
-                         keyword_method=args.keyword_method)
+    else:
+        x, y, word_sup_list, sup_idx, perm = get_train_inputs(padded_data, y, vocabulary,
+                                                              vocabulary_inv_list, 'keywords')
 
-    np.random.seed(1234)
-    vocabulary_inv = {key: value for key, value in enumerate(vocabulary_inv_list)}
-    vocab_sz = len(vocabulary_inv)
+
+    vocab_sz = len(vocabulary_inv_list)
     n_classes = len(word_sup_list)
-
+    vocabulary_inv = {key: value for key, value in enumerate(
+        vocabulary_inv_list)}
 
     if x.shape[1] < max_sequence_length:
         max_sequence_length = x.shape[1]
     x = x[:, :max_sequence_length]
     sequence_length = max_sequence_length
 
-
     print("\n### Input preparation ###")
     embedding_weights = train_word2vec(x, vocabulary_inv, args.dataset)
     embedding_mat = np.array(
         [np.array(embedding_weights[word]) for word in vocabulary_inv])
+
+
 
     wstc = WSTC(input_shape=x.shape, n_classes=n_classes, y=y,
                 model=args.model,
@@ -234,24 +185,19 @@ if __name__ == "__main__":
         total_counts -= word_counts[vocabulary_inv_list[0]]
         background_array = np.zeros(vocab_sz)
         for i in range(1, vocab_sz):
-            background_array[i] = word_counts[vocabulary_inv[i]] / total_counts
+            background_array[i] = word_counts[vocabulary_inv_list[i]] / total_counts
         seed_docs, seed_label = pseudodocs(word_sup_array, gamma,
                                            background_array,
                                            sequence_length, len_avg, len_std,
                                            beta, alpha,
-                                           vocabulary_inv, embedding_mat,
+                                           vocabulary_inv_list, embedding_mat,
                                            args.model,
                                            './results/{}/{}/phase1/'.format(
                                                args.dataset, args.model))
-        import  pickle
-        with open('../analysis/pseudodocs.pkl', 'wb') as f:
-            pickle.dump([seed_docs, seed_label, vocabulary_inv], f)
+
 
         if args.sup_source == 'docs':
-            if args.model == 'cnn':
-                num_real_doc = len(sup_idx.flatten()) * 10
-            elif args.model == 'rnn':
-                num_real_doc = len(sup_idx.flatten())
+            num_real_doc = len(sup_idx.flatten())
             real_seed_docs, real_seed_label = augment(x, sup_idx, num_real_doc)
             seed_docs = np.concatenate((seed_docs, real_seed_docs), axis=0)
             seed_label = np.concatenate((seed_label, real_seed_label), axis=0)
@@ -262,6 +208,8 @@ if __name__ == "__main__":
 
         print('\n### Phase 2: pre-training with pseudo documents ###')
 
+        print(seed_docs.shape)
+        print(seed_label.shape)
         wstc.pretrain(x=seed_docs, pretrain_labels=seed_label,
                       sup_idx=sup_idx, optimizer=SGD(lr=0.1, momentum=0.9),
                       epochs=pretrain_epochs, batch_size=args.batch_size,

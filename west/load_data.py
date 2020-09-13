@@ -10,13 +10,14 @@ from nltk import tokenize
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 
-def extract_tfidf_keywords(data_path, vocab, class_type, num_keywords, data,
+def extract_tfidf_keywords(dataset, vocab, class_type, num_keywords, data,
                         perm):
     sup_data = []
     sup_idx = []
     sup_label = []
     file_name = 'doc_id.txt'
-    infile = open(join(data_path, file_name), mode='r', encoding='utf-8')
+    infile = open(join('../' +dataset + '/', file_name), mode='r',
+                  encoding='utf-8')
     text = infile.readlines()
     for i, line in enumerate(text):
         line = line.split('\n')[0]
@@ -92,22 +93,14 @@ def read_file(data_dir, with_evaluation):
         csv.field_size_limit(500 * 1024 * 1024)
         reader = csv.reader(csvfile)
         for row in reader:
-            if data_dir == './agnews':
-                doc = row[1] + '. ' + row[2]
-                data.append(doc)
-                target.append(int(row[0]) - 1)
-            elif data_dir == './yelp':
-                data.append(row[1])
-                target.append(int(row[0]) - 1)
-            elif data_dir == '../hatespeech':
+            if data_dir == '../hatespeech':
                 data.append(row[1])
                 target.append(int(row[0]))
+    y = None
     if with_evaluation:
         y = np.asarray(target)
         assert len(data) == len(y)
         assert set(range(len(np.unique(y)))) == set(np.unique(y))
-    else:
-        y = None
     return data, y
 
 def clean_twitter(text):
@@ -127,36 +120,27 @@ def clean_twitter(text):
     text = text.lower()
     return text
 
-def clean_str(string):
+def clean_general(string):
     string = re.sub(r"[^A-Za-z0-9\']", " ", string)
     string = re.sub(r"\'s", " \'s", string)
-    # string = re.sub(r"\"", " \" ", string)
     string = re.sub(r"\'ve", " \'ve", string)
     string = re.sub(r"n\'t", " n\'t", string)
     string = re.sub(r"\'m", " \'m", string)
     string = re.sub(r"\'re", " \'re", string)
     string = re.sub(r"\'d", " \'d", string)
     string = re.sub(r"\'ll", " \'ll", string)
-    # string = re.sub(r",", " , ", string)
-    # string = re.sub(r"\.", " . ", string)
-    # string = re.sub(r"!", " ! ", string)
-    # string = re.sub(r"\$", " $ ", string)
-    # string = re.sub(r"\(", " \( ", string)
-    # string = re.sub(r"\)", " \) ", string)
-    # string = re.sub(r"\?", " \? ", string)
     string = re.sub(r"\s{2,}", " ", string)
     return string.strip().lower()
 
 
-def preprocess_doc(data, is_tweet=False):
+def preprocess_doc(data):
     data = [s.strip() for s in data]
-    if is_tweet:
-        data = [clean_twitter(s) for s in data]
-    data = [clean_str(s) for s in data]
+    data = [clean_twitter(s) for s in data]
+    data = [clean_general(s) for s in data]
     return data
 
 
-def pad_sequences(sentences, padding_word="<PAD/>", pad_len=None):
+def pad_sequences(sentences, pad_token="<PAD/>", pad_len=None):
     if pad_len is not None:
         sequence_length = pad_len
     else:
@@ -166,7 +150,7 @@ def pad_sequences(sentences, padding_word="<PAD/>", pad_len=None):
     for i in range(len(sentences)):
         sentence = sentences[i]
         num_padding = sequence_length - len(sentence)
-        new_sentence = sentence + [padding_word] * num_padding
+        new_sentence = sentence + [pad_token] * num_padding
         padded_sentences.append(new_sentence)
     return padded_sentences
 
@@ -182,12 +166,12 @@ def build_vocab(sentences):
 
 
 def build_input_data_cnn(sentences, vocabulary):
-    x = np.array(
-        [[vocabulary[word] for word in sentence] for sentence in sentences])
+    x = np.array([[vocabulary[word] for word in sentence] for sentence in
+                 sentences])
     return x
 
 
-def build_input_data_rnn(data, vocabulary, max_doc_len):
+def build_input_matrix(data, vocabulary, max_doc_len):
     x = np.zeros((len(data), max_doc_len), dtype='int32')
     for i, doc in enumerate(data):
         for j, word in enumerate(doc):
@@ -195,12 +179,14 @@ def build_input_data_rnn(data, vocabulary, max_doc_len):
     return x
 
 
-def extract_keywords(data_path, vocab, class_type, num_keywords, data, perm):
+def extract_ranking_keywords(dataset, num_keywords, data,
+                             perm):
     sup_data = []
     sup_idx = []
     sup_label = []
     file_name = 'doc_id.txt'
-    infile = open(join(data_path, file_name), mode='r', encoding='utf-8')
+    infile = open(join('../' + dataset + '/', file_name), mode='r',
+                  encoding='utf-8')
     text = infile.readlines()
     for i, line in enumerate(text):
         line = line.split('\n')[0]
@@ -214,8 +200,7 @@ def extract_keywords(data_path, vocab, class_type, num_keywords, data, perm):
             sup_label.append(i)
 
 
-    from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
-    import nltk
+    from sklearn.feature_extraction.text import  CountVectorizer
 
     with open('stopwords.txt', 'r') as f:
         lines = f.readlines()
@@ -271,16 +256,12 @@ def extract_keywords(data_path, vocab, class_type, num_keywords, data, perm):
     return keywords, new_sup_idx
 
 
-def load_keywords(data_path, sup_source):
-    if sup_source == 'labels':
-        file_name = 'classes.txt'
-        print("\n### Supervision type: Label Surface Names ###")
-        print("Label Names for each class: ")
-    elif sup_source == 'keywords':
-        file_name = 'keywords.txt'
-        print("\n### Supervision type: Class-related Keywords ###")
-        print("Keywords for each class: ")
-    infile = open(join(data_path, file_name), mode='r', encoding='utf-8')
+def load_keywords(dataset='hatespeech'):
+    file_name = 'keywords.txt'
+    print("\n### Supervision type: Class-related Keywords ###")
+    print("Keywords for each class: ")
+    infile = open(join('../' + dataset + '/', file_name), mode='r',
+                  encoding='utf-8')
     text = infile.readlines()
 
     keywords = []
@@ -295,41 +276,16 @@ def load_keywords(data_path, sup_source):
     return keywords
 
 
-def load_cnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
-             truncate_len=None, keyword_method='tfidf'):
-    data_path = '../' + dataset_name
-    data, y = read_file(data_path, with_evaluation)
 
-    sz = len(data)
+
+def get_train_inputs(data, y, vocabulary, vocabulary_inv, sup_source,
+                     num_keywords=5, with_evaluation=True, dataset_name =
+             'hatespeech', keyword_method='tfidf'):
+    x = build_input_matrix(data, vocabulary, len(data[0]))
+
+    sz = len(x)
     np.random.seed(1234)
     perm = np.random.permutation(sz)
-
-    if dataset_name == 'hatespeech':
-        data = preprocess_doc(data, True)
-    else:
-        data = preprocess_doc(data)
-
-    data = [s.split(" ") for s in data]
-
-    tmp_list = [len(doc) for doc in data]
-    len_max = max(tmp_list)
-    len_avg = np.average(tmp_list)
-    len_std = np.std(tmp_list)
-
-    print("\n### Dataset statistics: ###")
-    print('Document max length: {} (words)'.format(len_max))
-    print('Document average length: {} (words)'.format(len_avg))
-    print('Document length std: {} (words)'.format(len_std))
-
-    if truncate_len is None:
-        truncate_len = min(int(len_avg + 3 * len_std), len_max)
-    print("Defined maximum document length: {} (words)".format(truncate_len))
-    print('Fraction of truncated documents: {}'.format(
-        sum(tmp > truncate_len for tmp in tmp_list) / len(tmp_list)))
-
-    sequences_padded = pad_sequences(data)
-    word_counts, vocabulary, vocabulary_inv = build_vocab(sequences_padded)
-    x = build_input_data_cnn(sequences_padded, vocabulary)
     x = x[perm]
 
     if with_evaluation:
@@ -342,43 +298,30 @@ def load_cnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
     print("Vocabulary Size: {:d}".format(len(vocabulary_inv)))
 
     if sup_source == 'labels' or sup_source == 'keywords':
-        keywords = load_keywords(data_path, sup_source)
-        return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, \
-               len_std, keywords, perm
+        keywords = load_keywords(dataset_name)
+        return x, y, keywords, perm
     elif sup_source == 'docs':
-        if dataset_name == 'nyt':
-            class_type = 'topic'
-        elif dataset_name == 'agnews':
-            class_type = 'topic'
-        elif dataset_name == 'yelp':
-            class_type = 'sentiment'
-        elif dataset_name == 'hatespeech':
-            class_type = 'topic'
+        class_type = 'topic'
         if keyword_method == 'tfidf':
-            keywords, sup_idx = extract_tfidf_keywords(data_path, vocabulary, class_type,
-                                             num_keywords, data, perm)
-        else:
-            keywords, sup_idx = extract_keywords(data_path,
-                                                 vocabulary,
+            keywords, sup_idx = extract_tfidf_keywords(dataset_name, vocabulary,
                                                        class_type,
                                                        num_keywords, data,
                                                        perm)
-        return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, \
-               len_std, keywords, sup_idx, perm
+        else:
+            keywords, sup_idx = extract_ranking_keywords(dataset_name, vocabulary,
+                                                         class_type,
+                                                         num_keywords, data,
+                                                         perm)
+        return x, y, keywords, sup_idx, perm
 
 
-def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
-             truncate_len=None, keyword_method='tfidf'):
-    data_path = '../' + dataset_name
-    data, y = read_file(data_path, with_evaluation)
+def load_dataset(dataset_name, sup_source, with_evaluation=True,
+                 keyword_method='tfidf'):
+    return get_train_inputs(dataset_name, sup_source,
+                            with_evaluation=with_evaluation,
+                            keyword_method=keyword_method)
 
-    sz = len(data)
-    np.random.seed(1234)
-    perm = np.random.permutation(sz)
-
-    data = preprocess_doc(data, True)
-    data = [s.split(" ") for s in data]
-
+def print_len_stats(data):
     tmp_list = [len(doc) for doc in data]
     len_max = max(tmp_list)
     len_avg = np.average(tmp_list)
@@ -388,63 +331,17 @@ def load_rnn(dataset_name, sup_source, num_keywords=10, with_evaluation=True,
     print('Document max length: {} (words)'.format(len_max))
     print('Document average length: {} (words)'.format(len_avg))
     print('Document length std: {} (words)'.format(len_std))
+    return len_max, len_avg, len_std
 
-    if truncate_len is None:
-        truncate_len = min(int(len_avg + 3 * len_std), len_max)
-    print("Defined maximum document length: {} (words)".format(truncate_len))
-    print('Fraction of truncated documents: {}'.format(
-        sum(tmp > truncate_len for tmp in tmp_list) / len(tmp_list)))
+def load_dataset_v2(dataset_name, with_evaluation):
+    data_path = '../' + dataset_name
+    data, y = read_file(data_path, with_evaluation)
 
-    data = pad_sequences(data)
-    word_counts, vocabulary, vocabulary_inv = build_vocab(data)
+    data = preprocess_doc(data)
+    data = [s.split(" ") for s in data]
 
-    x = build_input_data_rnn(data, vocabulary, len_max)
+    len_max, len_avg, len_std = print_len_stats(data)
 
-    x = x[perm]
-
-    if with_evaluation:
-        print("Number of classes: {}".format(len(np.unique(y))))
-        print("Number of documents in each class:")
-        for i in range(len(np.unique(y))):
-            print("Class {}: {}".format(i, len(np.where(y == i)[0])))
-        y = y[perm]
-
-    print("Vocabulary Size: {:d}".format(len(vocabulary_inv)))
-
-    if sup_source == 'labels' or sup_source == 'keywords':
-        keywords = load_keywords(data_path, sup_source)
-        return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, \
-               len_std, keywords, perm
-    elif sup_source == 'docs':
-        if dataset_name == 'nyt':
-            class_type = 'topic'
-        elif dataset_name == 'agnews':
-            class_type = 'topic'
-        elif dataset_name == 'yelp':
-            class_type = 'sentiment'
-        elif dataset_name == 'hatespeech':
-            class_type = 'topic'
-        if keyword_method == 'tfidf':
-            keywords, sup_idx = extract_tfidf_keywords(data_path, vocabulary,
-                                                       class_type,
-                                                       num_keywords, data,
-                                                       perm)
-        else:
-            keywords, sup_idx = extract_keywords(data_path, vocabulary,
-                                                 class_type,
-                                                 num_keywords, data,
-                                                 perm)
-        return x, y, word_counts, vocabulary, vocabulary_inv, len_avg, \
-               len_std, keywords, sup_idx, perm
-
-
-def load_dataset(dataset_name, sup_source, model='cnn', with_evaluation=True,
-                 truncate_len=None, keyword_method='tfidf'):
-    if model == 'cnn':
-        return load_cnn(dataset_name, sup_source,
-                        with_evaluation=with_evaluation,
-                        truncate_len=truncate_len, keyword_method=keyword_method)
-    elif model == 'rnn':
-        return load_rnn(dataset_name, sup_source,
-                        with_evaluation=with_evaluation,
-                        truncate_len=truncate_len, keyword_method=keyword_method)
+    padded_data = pad_sequences(data)
+    word_counts, vocabulary, vocabulary_inv = build_vocab(padded_data)
+    return padded_data, y, word_counts, vocabulary, vocabulary_inv, len_max, len_avg, len_std
