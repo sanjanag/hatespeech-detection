@@ -1,5 +1,7 @@
 *.ipynb_checkpoints/
+bert/processed.pkl
 results/
+bert/processed.csv
 *final.h5
 *pretrained.h5
 *embedding
@@ -7,4 +9,6 @@ results/
 __pycache__/
 *.DS_Store
 data/*
+bert/metrics/*
+bert/conwea/*
 supervised/.ipynb_checkpoints/*
